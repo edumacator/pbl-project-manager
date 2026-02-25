@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Environment Files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+
+# Build Directories
+dist/
+build/
+.next/
+out/
+
+# IDE/System Files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.log
+
+# Project Specific
+deploy_ready/
+server/scripts/migrate_classes.php
+server/scripts/run_mig_*.php
+run_mig_*.php
+initial-prompt.txt

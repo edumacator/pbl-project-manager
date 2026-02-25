@@ -1,0 +1,2 @@
+ALTER TABLE projects
+ADD COLUMN default_tasks JSON NULL DEFAULT NULL;

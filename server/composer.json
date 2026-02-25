@@ -1,0 +1,19 @@
+{
+    "name": "antigravity/pbl-project-management",
+    "description": "Backend for PBL Project Management Tool",
+    "type": "project",
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Antigravity",
+            "email": "antigravity@google.com"
+        }
+    ]
+}

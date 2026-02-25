@@ -1,0 +1,4 @@
+ALTER TABLE tasks
+ADD COLUMN team_id INT NULL;
+ALTER TABLE tasks
+ADD CONSTRAINT fk_tasks_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE;
