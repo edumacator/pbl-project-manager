@@ -49,7 +49,7 @@ export interface Task {
     project_id: number;
     title: string;
     description: string;
-    status: 'todo' | 'in_progress' | 'review' | 'done';
+    status: 'todo' | 'doing' | 'done';
     assignee_id?: number;
     assignee_name?: string;
     team_id?: number;
@@ -111,9 +111,11 @@ export interface TaskReflection {
 export interface ProjectResource {
     id: number;
     project_id: number;
+    team_id?: number;
     task_id?: number;
     title: string;
     url: string;
     type: 'link' | 'file';
+    description?: string;
     created_at?: string;
 }

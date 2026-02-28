@@ -10,9 +10,7 @@ interface TeamKanbanProps {
 
 const COLUMNS = [
     { id: 'todo', title: 'To Do' },
-    { id: 'in_progress', title: 'In Progress' },
-    { id: 'blocked', title: 'Blocked' },
-    { id: 'review', title: 'Ready for Review' },
+    { id: 'doing', title: 'In Progress' },
     { id: 'done', title: 'Done' }
 ];
 

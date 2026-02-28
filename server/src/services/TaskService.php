@@ -47,12 +47,40 @@ class TaskService
         return $this->reflectionRepo->findByTaskId($taskId);
     }
 
-    public function addResource(int $projectId, ?int $taskId, string $title, string $url, string $type = 'link', ?int $teamId = null): \App\Domain\ProjectResource
+    public function addResource(int $projectId, ?int $taskId, string $title, string $url, string $type = 'link', ?int $teamId = null, ?string $description = null): \App\Domain\ProjectResource
     {
-        $resource = new \App\Domain\ProjectResource($projectId, $title, $url, $type, $taskId, $teamId);
+        $resource = new \App\Domain\ProjectResource($projectId, $title, $url, $type, $taskId, $teamId, null, null, $description);
         $id = $this->resourceRepo->create($resource);
         $resource->id = $id;
         return $resource;
+    }
+
+    public function updateResource(int $resourceId, array $data): ?\App\Domain\ProjectResource
+    {
+        $resource = $this->resourceRepo->findById($resourceId);
+        if (!$resource)
+            return null;
+
+        if (isset($data['title']))
+            $resource->title = $data['title'];
+        if (isset($data['url']))
+            $resource->url = $data['url'];
+        if (isset($data['type']))
+            $resource->type = $data['type'];
+        if (isset($data['description']))
+            $resource->description = $data['description'];
+        if (array_key_exists('team_id', $data))
+            $resource->teamId = $data['team_id'];
+        if (array_key_exists('task_id', $data))
+            $resource->taskId = $data['task_id'];
+
+        $this->resourceRepo->update($resource);
+        return $resource;
+    }
+
+    public function deleteResource(int $resourceId): bool
+    {
+        return $this->resourceRepo->delete($resourceId);
     }
 
     public function getResourcesForTeam(int $teamId): array
