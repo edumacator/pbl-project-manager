@@ -10,7 +10,9 @@ import PeerAssignmentModal from '../components/PeerAssignmentModal';
 import TimelineView from '../components/TimelineView';
 import { TaskDetailsModal } from '../components/TaskDetailsModal';
 import { TeamContributionsModal } from '../components/TeamContributionsModal';
+import { ProjectHomeView } from '../components/ProjectHomeView';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const KanbanColumn: React.FC<{
     title: string;
@@ -122,13 +124,14 @@ const ProjectBoard: React.FC = () => {
     const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
     const [isTeamMembersOpen, setIsTeamMembersOpen] = useState(false);
     const [classStudents, setClassStudents] = useState<User[]>([]);
-    const [viewMode, setViewMode] = useState<'board' | 'timeline' | 'resources'>('board');
+    const [viewMode, setViewMode] = useState<'home' | 'board' | 'timeline' | 'resources'>('home');
     const [expandedTeamIds, setExpandedTeamIds] = useState<Set<number>>(new Set());
     const [showArchived, setShowArchived] = useState(false);
     const [projectResources, setProjectResources] = useState<any[]>([]);
     const [timelineRefresh, setTimelineRefresh] = useState(0);
     const [isContributionsOpen, setIsContributionsOpen] = useState(false);
     const { addToast } = useToast();
+    const { user } = useAuth();
 
     // Critique Modal State
     const [isCritiqueModalOpen, setIsCritiqueModalOpen] = useState(false);
@@ -214,8 +217,6 @@ const ProjectBoard: React.FC = () => {
                 } catch (e) {
                     console.error("Failed to fetch project resources", e);
                 }
-
-                fetchTasks(null);
 
                 if (projRes.project.class_id) {
                     try {
@@ -374,7 +375,7 @@ const ProjectBoard: React.FC = () => {
 
 
     const todo = tasks.filter(t => t.status === 'todo');
-    const doing = tasks.filter(t => (t.status as string) === 'doing' || (t.status as string) === 'in_progress');
+    const doing = tasks.filter(t => t.status === 'doing' || (t.status as string) === 'in_progress');
     const done = tasks.filter(t => t.status === 'done');
 
     const selectedTeam = teams.find(t => t.id === selectedTeamId);
@@ -400,7 +401,7 @@ const ProjectBoard: React.FC = () => {
                         )}
                     </h1>
                     <p className="text-gray-500">Driving Question: {project ? project.driving_question : 'Loading...'}</p>
-                    <div className="flex flex-wrap gap-2 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-3">
                         {project?.classes?.map(c => (
                             <Link
                                 key={c.id}
@@ -413,13 +414,16 @@ const ProjectBoard: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex gap-4 items-center">
-                    {selectedTeamId && (
-                        <div className="flex items-center bg-gray-100 p-1 rounded-lg">
-                            <button onClick={() => setViewMode('board')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'board' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Board</button>
-                            <button onClick={() => setViewMode('timeline')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'timeline' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Timeline</button>
-                            <button onClick={() => setViewMode('resources')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'resources' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Resources</button>
-                        </div>
-                    )}
+                    <div className="flex items-center bg-gray-100 p-1 rounded-lg">
+                        <button onClick={() => setViewMode('home')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'home' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Home</button>
+                        <button onClick={() => setViewMode('board')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'board' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Board</button>
+                        {selectedTeamId && (
+                            <>
+                                <button onClick={() => setViewMode('timeline')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'timeline' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Timeline</button>
+                                <button onClick={() => setViewMode('resources')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'resources' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Resources</button>
+                            </>
+                        )}
+                    </div>
                     <div className="flex items-center">
                         <label className="mr-2 text-sm font-medium text-gray-700">Group:</label>
                         <select
@@ -527,7 +531,19 @@ const ProjectBoard: React.FC = () => {
             )}
 
             <div className="flex-1 overflow-x-auto">
-                {selectedTeamId ? (
+                {viewMode === 'home' && project ? (
+                    <ProjectHomeView
+                        project={project}
+                        currentUser={user}
+                        teams={teams}
+                        tasks={tasks}
+                        onTeamSelect={(id) => {
+                            setSearchParams({ team_id: id.toString() });
+                            setViewMode('board');
+                        }}
+                        onProjectUpdate={(updatedProject) => setProject(updatedProject)}
+                    />
+                ) : selectedTeamId ? (
                     viewMode === 'board' ? (
                         <div className="flex gap-6 h-full pb-4">
                             <KanbanColumn
@@ -542,7 +558,7 @@ const ProjectBoard: React.FC = () => {
                             />
                             <KanbanColumn
                                 title="In Progress"
-                                status="in_progress"
+                                status="doing"
                                 tasks={doing}
                                 onAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
                                 onDrop={handleTaskDrop}

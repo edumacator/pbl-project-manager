@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { Project, Class } from '../types';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 
 const CreateProject: React.FC = () => {
     const navigate = useNavigate();
@@ -12,6 +14,7 @@ const CreateProject: React.FC = () => {
 
     const [title, setTitle] = useState('');
     const [dq, setDq] = useState('');
+    const [description, setDescription] = useState('');
     const [dueDate, setDueDate] = useState('');
     const [requiresReflection, setRequiresReflection] = useState(false);
     const [requiresMilestoneReflection, setRequiresMilestoneReflection] = useState(false);
@@ -28,6 +31,19 @@ const CreateProject: React.FC = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(false);
+
+    const editor = useEditor({
+        extensions: [StarterKit],
+        content: description,
+        onUpdate: ({ editor }) => {
+            setDescription(editor.getHTML());
+        },
+        editorProps: {
+            attributes: {
+                class: 'prose prose-sm sm:prose-base max-w-none focus:outline-none min-h-[150px] p-4 bg-white rounded-b-lg border-t-0 border border-gray-300',
+            },
+        },
+    });
 
     useEffect(() => {
         document.title = isEditMode ? "Edit Project | PBL Manager" : "Create Project | PBL Manager";
@@ -49,6 +65,10 @@ const CreateProject: React.FC = () => {
                     if (project) {
                         setTitle(project.title);
                         setDq(project.driving_question);
+                        setDescription(project.description || '');
+                        if (editor && project.description) {
+                            editor.commands.setContent(project.description);
+                        }
                         setDueDate(project.due_date ? project.due_date.substring(0, 10) : '');
                         setRequiresReflection(!!project.requires_reflection);
                         setRequiresMilestoneReflection(!!project.requires_milestone_reflection);
@@ -80,7 +100,7 @@ const CreateProject: React.FC = () => {
                 .catch(() => setError('Failed to load project'))
                 .finally(() => setInitialLoading(false));
         }
-    }, [id, isEditMode]);
+    }, [id, isEditMode, editor]); // Added editor to dependency array
 
     const toggleClassSelection = (id: string) => {
         setSelectedClassIds(prev =>
@@ -122,6 +142,7 @@ const CreateProject: React.FC = () => {
             const payload = {
                 title,
                 driving_question: dq,
+                description,
                 teacher_id: 1, // Hardcoded auth
                 class_ids: selectedClassIds.map(Number),
                 due_date: dueDate || null,
@@ -180,6 +201,54 @@ const CreateProject: React.FC = () => {
                         placeholder="e.g. How can we sustain life on another planet?"
                         required
                     />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Project Description (Optional)</label>
+                    <p className="text-xs text-gray-500 mb-2">Detailed instructions, context, or scenario for the project.</p>
+                    <div className="rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-indigo-500">
+                        {/* Simple Toolbar */}
+                        <div className="flex flex-wrap gap-1 bg-gray-50 p-2 border border-gray-300 rounded-t-lg border-b-0">
+                            <button
+                                type="button"
+                                onClick={() => editor?.chain().focus().toggleBold().run()}
+                                className={`px-2 py-1 rounded text-sm font-bold ${editor?.isActive('bold') ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                            >B</button>
+                            <button
+                                type="button"
+                                onClick={() => editor?.chain().focus().toggleItalic().run()}
+                                className={`px-2 py-1 rounded text-sm italic ${editor?.isActive('italic') ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                            >I</button>
+                            <button
+                                type="button"
+                                onClick={() => editor?.chain().focus().toggleStrike().run()}
+                                className={`px-2 py-1 rounded text-sm line-through ${editor?.isActive('strike') ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                            >S</button>
+                            <div className="w-px h-6 bg-gray-300 mx-1 self-center"></div>
+                            <button
+                                type="button"
+                                onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+                                className={`px-2 py-1 rounded text-sm font-semibold ${editor?.isActive('heading', { level: 2 }) ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                            >H2</button>
+                            <button
+                                type="button"
+                                onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+                                className={`px-2 py-1 rounded text-sm font-semibold ${editor?.isActive('heading', { level: 3 }) ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                            >H3</button>
+                            <div className="w-px h-6 bg-gray-300 mx-1 self-center"></div>
+                            <button
+                                type="button"
+                                onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                                className={`px-2 py-1 rounded text-sm ${editor?.isActive('bulletList') ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                            >• List</button>
+                            <button
+                                type="button"
+                                onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                                className={`px-2 py-1 rounded text-sm ${editor?.isActive('orderedList') ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                            >1. List</button>
+                        </div>
+                        <EditorContent editor={editor} />
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">

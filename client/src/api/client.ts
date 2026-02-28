@@ -26,6 +26,13 @@ export const request = async <T = any>(url: string, options: RequestInit = {}): 
         headers,
     });
 
+    if (response.status === 401 && !url.includes('/auth/login')) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        window.location.href = '/login';
+        throw new Error('Session expired or unauthorized');
+    }
+
     const json: ApiResponse<T> = await response.json();
 
     if (!json.ok) {

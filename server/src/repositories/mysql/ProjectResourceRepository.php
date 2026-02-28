@@ -17,8 +17,8 @@ class ProjectResourceRepository
     public function create(ProjectResource $resource): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO project_resources (project_id, team_id, task_id, title, url, type)
-            VALUES (:project_id, :team_id, :task_id, :title, :url, :type)
+            INSERT INTO project_resources (project_id, team_id, task_id, title, url, type, description)
+            VALUES (:project_id, :team_id, :task_id, :title, :url, :type, :description)
         ");
 
         $stmt->execute([
@@ -27,7 +27,8 @@ class ProjectResourceRepository
             ':task_id' => $resource->taskId,
             ':title' => $resource->title,
             ':url' => $resource->url,
-            ':type' => $resource->type
+            ':type' => $resource->type,
+            ':description' => $resource->description
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -72,6 +73,42 @@ class ProjectResourceRepository
         return array_map([$this, 'mapRowToResource'], $rows);
     }
 
+    public function findById(int $id): ?ProjectResource
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM project_resources WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row)
+            return null;
+        return $this->mapRowToResource($row);
+    }
+
+    public function update(ProjectResource $resource): bool
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE project_resources 
+            SET title = :title, url = :url, type = :type, description = :description, team_id = :team_id, task_id = :task_id
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':title' => $resource->title,
+            ':url' => $resource->url,
+            ':type' => $resource->type,
+            ':description' => $resource->description,
+            ':team_id' => $resource->teamId,
+            ':task_id' => $resource->taskId,
+            ':id' => $resource->id
+        ]);
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM project_resources WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
     private function mapRowToResource(array $row): ProjectResource
     {
         return new ProjectResource(
@@ -82,7 +119,8 @@ class ProjectResourceRepository
             $row['task_id'] ? (int) $row['task_id'] : null,
             $row['team_id'] ? (int) $row['team_id'] : null,
             (int) $row['id'],
-            $row['created_at']
+            $row['created_at'],
+            $row['description'] ?? null
         );
     }
 }

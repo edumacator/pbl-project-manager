@@ -59,7 +59,7 @@ class TaskRepository implements TaskRepositoryInterface
         $params = [':project_id' => $projectId];
 
         if ($teamId) {
-            $sql .= " AND t.team_id = :team_id";
+            $sql .= " AND (t.team_id = :team_id OR t.team_id IS NULL)";
             $params[':team_id'] = $teamId;
         }
 

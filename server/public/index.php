@@ -13,6 +13,7 @@ use App\Repositories\MySQL\ReflectionRepository;
 use App\Repositories\MySQL\PeerReviewRepository;
 use App\Repositories\MySQL\FeedbackRepository;
 use App\Repositories\MySQL\ClassRepository;
+use App\Repositories\MySQL\ProjectQnaRepository;
 use App\Services\ProjectService;
 use App\Services\AuthService;
 use App\Services\TeamService;
@@ -21,6 +22,7 @@ use App\Services\CheckpointService;
 use App\Services\ReviewService;
 use App\Services\ClassService;
 use App\Services\AnalyticsService;
+use App\Services\ProjectQnaService;
 
 // Load Env
 Env::load(__DIR__ . '/../.env');
@@ -86,6 +88,7 @@ try {
 
     $taskReflectionRepo = new \App\Repositories\MySQL\TaskReflectionRepository();
     $resourceRepo = new \App\Repositories\MySQL\ProjectResourceRepository();
+    $qnaRepo = new ProjectQnaRepository(\App\Repositories\MySQL\Database::getConnection());
 
     $reviewService = new ReviewService($reviewRepo, new FeedbackRepository(\App\Repositories\MySQL\Database::getConnection()), $projectRepo, $taskRepo, $auditRepo);
     $authService = new AuthService($userRepo);
@@ -98,6 +101,7 @@ try {
     $studentService = new \App\Services\StudentService($taskRepo, $userRepo);
     $timelineService = new \App\Services\TimelineService($taskRepo, $projectRepo, $teamRepo, $checkpointRepo, $reviewService);
     $analyticsService = new AnalyticsService();
+    $qnaService = new ProjectQnaService($qnaRepo);
 } catch (\Throwable $e) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => ['code' => 'BOOTSTRAP_ERROR', 'message' => $e->getMessage()]]);
@@ -715,9 +719,10 @@ if (preg_match('#^/api/v1/projects/(\d+)/resources$#', $uri, $matches)) {
         $url = $input['url'] ?? '';
         $type = $input['type'] ?? 'link';
         $teamId = isset($input['team_id']) ? (int) $input['team_id'] : null;
+        $description = $input['description'] ?? null;
 
         try {
-            $resource = $taskService->addResource($projectId, $taskId, $title, $url, $type, $teamId);
+            $resource = $taskService->addResource($projectId, $taskId, $title, $url, $type, $teamId, $description);
             echo json_encode(['ok' => true, 'data' => ['resource' => $resource]]);
         } catch (\Exception $e) {
             http_response_code(500);
@@ -725,6 +730,118 @@ if (preg_match('#^/api/v1/projects/(\d+)/resources$#', $uri, $matches)) {
         }
         exit;
     }
+}
+
+// Resource Individual Actions
+if (preg_match('#^/api/v1/resources/(\d+)$#', $uri, $matches)) {
+    $resourceId = (int) $matches[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        if (!$currentUser) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Login required']]);
+            exit;
+        }
+
+        try {
+            $success = $taskService->deleteResource($resourceId);
+            if ($success) {
+                echo json_encode(['ok' => true, 'data' => ['deleted' => true]]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Resource not found or already deleted']]);
+            }
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'PATCH' || $_SERVER['REQUEST_METHOD'] === 'PUT') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$currentUser) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Login required']]);
+            exit;
+        }
+
+        try {
+            $resource = $taskService->updateResource($resourceId, $input);
+            if ($resource) {
+                echo json_encode(['ok' => true, 'data' => ['resource' => $resource]]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Resource not found']]);
+            }
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+}
+
+// Project Q&A
+if (preg_match('#^/api/v1/projects/(\d+)/qna$#', $uri, $matches)) {
+    $projectId = (int) $matches[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        try {
+            $questions = $qnaService->getQuestionsForProject($projectId);
+            echo json_encode(['ok' => true, 'data' => $questions]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$currentUser) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Login required']]);
+            exit;
+        }
+
+        try {
+            $question = $input['question'] ?? '';
+            $qna = $qnaService->askQuestion($projectId, $currentUser->id, $question);
+            echo json_encode(['ok' => true, 'data' => ['qna' => $qna]]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+}
+
+if (preg_match('#^/api/v1/projects/(\d+)/qna/(\d+)$#', $uri, $matches) && ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'PATCH')) {
+    $qnaId = (int) $matches[2];
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (!$currentUser || $currentUser->role !== 'teacher') {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only teachers can answer questions.']]);
+        exit;
+    }
+
+    try {
+        $answer = $input['answer'] ?? '';
+        $success = $qnaService->answerQuestion($qnaId, $currentUser->id, $answer);
+
+        if ($success) {
+            echo json_encode(['ok' => true, 'data' => ['answered' => true]]);
+        } else {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => 'Failed to save answer.']]);
+        }
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
 }
 
 // Team Resources
