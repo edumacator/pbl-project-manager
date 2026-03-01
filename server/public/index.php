@@ -27,6 +27,15 @@ use App\Services\ProjectQnaService;
 // Load Env
 Env::load(__DIR__ . '/../.env');
 
+// PHP 8+ Polyfills
+if (!function_exists('str_ends_with')) {
+    function str_ends_with($haystack, $needle)
+    {
+        $length = strlen($needle);
+        return $length > 0 ? substr($haystack, -$length) === $needle : true;
+    }
+}
+
 // ERROR HANDLING (Return JSON for all errors)
 set_error_handler(function ($errno, $errstr, $errfile, $errline) {
     if (!(error_reporting() & $errno))
@@ -603,40 +612,6 @@ if (preg_match('#^/api/v1/tasks/(\d+)/reflections$#', $uri, $matches)) {
     }
 }
 
-// Project Resources
-if (preg_match('#^/api/v1/projects/(\d+)/resources$#', $uri, $matches)) {
-    $projectId = (int) $matches[1];
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $input = json_decode(file_get_contents('php://input'), true);
-        try {
-            $resource = $taskService->addResource(
-                $projectId,
-                $input['task_id'] ?? null,
-                $input['title'] ?? '',
-                $input['url'] ?? '',
-                $input['type'] ?? 'link',
-                $input['team_id'] ?? null
-            );
-            echo json_encode(['ok' => true, 'data' => ['resource' => $resource]]);
-        } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
-        }
-        exit;
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        try {
-            $resources = $taskService->getResourcesForProject($projectId);
-            echo json_encode(['ok' => true, 'data' => $resources]);
-        } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
-        }
-        exit;
-    }
-}
 
 // Task Resources
 if (preg_match('#^/api/v1/tasks/(\d+)/resources$#', $uri, $matches)) {
@@ -730,6 +705,76 @@ if (preg_match('#^/api/v1/projects/(\d+)/resources$#', $uri, $matches)) {
         }
         exit;
     }
+}
+
+// Project Resources Upload
+if (preg_match('#^/api/v1/projects/(\d+)/resources/upload$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $projectId = (int) $matches[1];
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UPLOAD_FAILED', 'message' => 'No file uploaded or upload error']]);
+        exit;
+    }
+
+    $file = $_FILES['file'];
+    $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'zip', 'csv'];
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+    if (!in_array($extension, $allowedExtensions)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'INVALID_FILE_TYPE', 'message' => 'File type not allowed']]);
+        exit;
+    }
+
+    // Generate unique filename
+    $filename = uniqid('res_') . '_' . preg_replace('/[^a-zA-Z0-9.\-_]/', '', basename($file['name']));
+    $uploadDir = __DIR__ . '/uploads/resources/';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+
+    $targetPath = $uploadDir . $filename;
+
+    if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+        // Helper to cleanly convert JS FormData empty/null/undefined strings to actual PHP nulls
+        $cleanId = function ($val) {
+            if ($val === null || $val === '' || $val === 'null' || $val === 'undefined')
+                return null;
+            return (int) $val;
+        };
+
+        $taskId = isset($_POST['task_id']) ? $cleanId($_POST['task_id']) : null;
+        $title = $_POST['title'] ?? $file['name'];
+        $url = '/uploads/resources/' . $filename;
+        $type = 'file';
+        $teamId = isset($_POST['team_id']) ? $cleanId($_POST['team_id']) : null;
+        $description = $_POST['description'] ?? null;
+
+        try {
+            $resource = $taskService->addResource($projectId, $taskId, $title, $url, $type, $teamId, $description);
+            echo json_encode(['ok' => true, 'data' => ['resource' => $resource]]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+    } else {
+        $lastError = error_get_last();
+        $uploadError = $_FILES['file']['error'] ?? 'Unknown';
+        http_response_code(500);
+        echo json_encode([
+            'ok' => false,
+            'error' => [
+                'code' => 'UPLOAD_FAILED',
+                'message' => 'Failed to move uploaded file',
+                'details' => $lastError,
+                'upload_code' => $uploadError,
+                'target_path' => $targetPath,
+                'tmp_name' => $file['tmp_name'] ?? null
+            ]
+        ]);
+    }
+    exit;
 }
 
 // Resource Individual Actions

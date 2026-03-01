@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../api/client';
+import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { Link as LinkIcon, ExternalLink, Plus, Book, FileText } from 'lucide-react';
 
@@ -25,8 +25,10 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
     const { addToast } = useToast();
 
     // Form state
+    const [type, setType] = useState<'link' | 'file'>('link');
     const [url, setUrl] = useState('');
     const [title, setTitle] = useState('');
+    const [file, setFile] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchResources = async () => {
@@ -49,21 +51,43 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!url.trim()) return;
+        if (type === 'link' && !url.trim()) return;
+        if (type === 'file' && !file) return;
 
         try {
             setIsSubmitting(true);
-            const resData = await api.post(`/projects/${projectId}/resources`, {
-                team_id: teamId,
-                title: title.trim(),
-                url: url.trim(),
-                type: 'link' // Assuming link for now based on user's placeholder note
-            });
+            let resData;
+
+            if (type === 'file' && file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('title', title.trim() || file.name);
+                formData.append('team_id', teamId.toString());
+
+                resData = await fetch(`${API_BASE}/projects/${projectId}/resources/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    },
+                    body: formData
+                }).then(async (res) => {
+                    if (!res.ok) throw new Error('Upload failed');
+                    return res.json();
+                });
+            } else {
+                resData = await api.post(`/projects/${projectId}/resources`, {
+                    team_id: teamId,
+                    title: title.trim(),
+                    url: url.trim(),
+                    type: 'link'
+                });
+            }
 
             if (resData && (resData as any).data?.resource) {
                 setResources([(resData as any).data.resource, ...resources]);
                 setUrl('');
                 setTitle('');
+                setFile(null);
                 addToast("Resource added successfully.", "success");
             }
         } catch (error) {
@@ -103,16 +127,39 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                         <div className="flex gap-4 items-start">
                             <div className="flex-1 space-y-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">URL / Link Location</label>
-                                    <input
-                                        type="url"
-                                        required
-                                        value={url}
-                                        onChange={(e) => setUrl(e.target.value)}
-                                        placeholder="https://..."
-                                        className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    />
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Type</label>
+                                    <select
+                                        value={type}
+                                        onChange={(e) => setType(e.target.value as 'link' | 'file')}
+                                        className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                    >
+                                        <option value="link">External Link</option>
+                                        <option value="file">Document/File</option>
+                                    </select>
                                 </div>
+                                {type === 'link' ? (
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">URL / Link Location</label>
+                                        <input
+                                            type="url"
+                                            required
+                                            value={url}
+                                            onChange={(e) => setUrl(e.target.value)}
+                                            placeholder="https://..."
+                                            className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Upload File</label>
+                                        <input
+                                            type="file"
+                                            required
+                                            onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                            className="w-full text-sm p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Title (Optional)</label>
                                     <input
@@ -127,7 +174,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                             <div className="mt-6 pt-1">
                                 <button
                                     type="submit"
-                                    disabled={!url.trim() || isSubmitting}
+                                    disabled={isSubmitting || (type === 'link' ? !url.trim() : !file)}
                                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center"
                                 >
                                     {isSubmitting ? 'Adding...' : <><Plus className="w-4 h-4 mr-2" /> Add Resource</>}

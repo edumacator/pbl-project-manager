@@ -29,3 +29,9 @@ server/scripts/migrate_classes.php
 server/scripts/run_mig_*.php
 run_mig_*.php
 initial-prompt.txt
+
+# User Uploads
+server/public/uploads/
+
+.agents/
+
