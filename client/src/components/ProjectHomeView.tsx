@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Project, ProjectResource, User } from '../types';
-import { api } from '../api/client';
+import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { Plus, MessageCircle, Save, Edit2, Trash2, FileText, Link2, Maximize2, Minimize2 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -40,6 +40,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
     const [newResourceDescription, setNewResourceDescription] = useState('');
     const [showResourceModal, setShowResourceModal] = useState(false);
     const [editingResource, setEditingResource] = useState<ProjectResource | null>(null);
+    const [newResourceFile, setNewResourceFile] = useState<File | null>(null);
     const [expandedPanel, setExpandedPanel] = useState<'resources' | 'qna' | null>(null);
 
     // Q&A state
@@ -128,6 +129,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
         setNewResourceUrl(res.url);
         setNewResourceType(res.type as 'link' | 'file');
         setNewResourceDescription(res.description || '');
+        setNewResourceFile(null);
         setShowResourceModal(true);
     };
 
@@ -147,26 +149,64 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
         e.preventDefault();
         try {
             if (editingResource) {
-                await api.put(`/resources/${editingResource.id}`, {
-                    title: newResourceTitle,
-                    url: newResourceUrl,
-                    type: newResourceType,
-                    description: newResourceDescription || null
-                });
+                if (newResourceType === 'file' && newResourceFile) {
+                    const formData = new FormData();
+                    formData.append('file', newResourceFile);
+                    formData.append('title', newResourceTitle);
+                    if (newResourceDescription) formData.append('description', newResourceDescription);
+
+                    // Note: update with file is tricky on the backend without a specific upload endpoint for PUT
+                    // We'll rely on deleting and recreating or just updating metadata for now.
+                    // For simplicity, if editing and a new file is provided, we just update metadata in this version or warn user.
+                    // Let's just update the metadata for now if they edit a file:
+                    await api.put(`/resources/${editingResource.id}`, {
+                        title: newResourceTitle,
+                        url: newResourceUrl,
+                        type: newResourceType,
+                        description: newResourceDescription || null
+                    });
+                } else {
+                    await api.put(`/resources/${editingResource.id}`, {
+                        title: newResourceTitle,
+                        url: newResourceUrl,
+                        type: newResourceType,
+                        description: newResourceDescription || null
+                    });
+                }
                 addToast('Resource updated', 'success');
             } else {
-                await api.post(`/projects/${project.id}/resources`, {
-                    title: newResourceTitle,
-                    url: newResourceUrl,
-                    type: newResourceType,
-                    description: newResourceDescription || null
-                });
+                if (newResourceType === 'file' && newResourceFile) {
+                    const formData = new FormData();
+                    formData.append('file', newResourceFile);
+                    formData.append('title', newResourceTitle);
+                    if (newResourceDescription) formData.append('description', newResourceDescription);
+
+                    // We use the custom upload endpoint
+                    await fetch(`${API_BASE}/projects/${project.id}/resources/upload`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                        },
+                        body: formData
+                    }).then(async (res) => {
+                        if (!res.ok) throw new Error('Upload failed');
+                        return res.json();
+                    });
+                } else {
+                    await api.post(`/projects/${project.id}/resources`, {
+                        title: newResourceTitle,
+                        url: newResourceUrl,
+                        type: newResourceType,
+                        description: newResourceDescription || null
+                    });
+                }
                 addToast('Resource added', 'success');
             }
 
             setNewResourceTitle('');
             setNewResourceUrl('');
             setNewResourceDescription('');
+            setNewResourceFile(null);
             setEditingResource(null);
             setShowResourceModal(false);
             fetchResources();
@@ -378,6 +418,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                                         setNewResourceUrl('');
                                         setNewResourceDescription('');
                                         setNewResourceType('link');
+                                        setNewResourceFile(null);
                                         setShowResourceModal(true);
                                     }}
                                     className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
@@ -541,16 +582,23 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                                     <input type="text" value={newResourceTitle} onChange={e => setNewResourceTitle(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">URL / Link</label>
-                                    <input type="url" value={newResourceUrl} onChange={e => setNewResourceUrl(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none" required />
-                                </div>
-                                <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                                     <select value={newResourceType} onChange={e => setNewResourceType(e.target.value as any)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none">
                                         <option value="link">External Link</option>
                                         <option value="file">Document/File</option>
                                     </select>
                                 </div>
+                                {newResourceType === 'link' || editingResource ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">URL / Link</label>
+                                        <input type="url" value={newResourceUrl} onChange={e => setNewResourceUrl(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none" required={newResourceType === 'link'} />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Upload File</label>
+                                        <input type="file" onChange={e => setNewResourceFile(e.target.files?.[0] || null)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none bg-white" required={!editingResource} />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Optional Description</label>
                                     <textarea value={newResourceDescription} onChange={e => setNewResourceDescription(e.target.value)} className="w-full px-3 py-2 border rounded-md text-sm min-h-[60px] focus:ring-1 focus:ring-indigo-500 outline-none" placeholder="Brief note about this resource..." />

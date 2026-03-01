@@ -46,7 +46,6 @@ class TaskService
     {
         return $this->reflectionRepo->findByTaskId($taskId);
     }
-
     public function addResource(int $projectId, ?int $taskId, string $title, string $url, string $type = 'link', ?int $teamId = null, ?string $description = null): \App\Domain\ProjectResource
     {
         $resource = new \App\Domain\ProjectResource($projectId, $title, $url, $type, $taskId, $teamId, null, null, $description);

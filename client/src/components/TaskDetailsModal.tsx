@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Project, TaskReflection, ProjectResource } from '../types';
 import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil } from 'lucide-react';
-import { api } from '../api/client';
+import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 
 interface TaskDetailsModalProps {
@@ -22,6 +22,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const [newReflection, setNewReflection] = useState('');
     const [newResourceTitle, setNewResourceTitle] = useState('');
     const [newResourceUrl, setNewResourceUrl] = useState('');
+    const [file, setFile] = useState<File | null>(null);
     const [uploadMode, setUploadMode] = useState(false);
     const [loading, setLoading] = useState(false);
     const { addToast } = useToast();
@@ -72,19 +73,44 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
 
     const handleAddResource = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newResourceTitle.trim() || !newResourceUrl.trim() || !task) return;
+        if (!task) return;
+        if (!uploadMode && (!newResourceTitle.trim() || !newResourceUrl.trim())) return;
+        if (uploadMode && !file) return;
+
         try {
-            await api.post(`/projects/${project.id}/resources`, {
-                task_id: task.id,
-                title: newResourceTitle,
-                url: newResourceUrl,
-                type: 'link'
-            });
+            if (uploadMode && file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('title', newResourceTitle.trim() || file.name);
+                formData.append('task_id', task.id.toString());
+
+                await fetch(`${API_BASE}/projects/${project.id}/resources/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    },
+                    body: formData
+                }).then(async (res) => {
+                    if (!res.ok) throw new Error('Upload failed');
+                    return res.json();
+                });
+            } else {
+                await api.post(`/projects/${project.id}/resources`, {
+                    task_id: task.id,
+                    title: newResourceTitle,
+                    url: newResourceUrl,
+                    type: 'link'
+                });
+            }
             setNewResourceTitle('');
             setNewResourceUrl('');
+            setFile(null);
             fetchData();
+            setUploadMode(false);
+            addToast("Resource added successfully", "success");
         } catch (err) {
             console.error(err);
+            addToast("Failed to add resource.", "error");
         }
     };
 
@@ -277,12 +303,11 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                                 className="flex-1 text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none"
                                             />
                                         ) : (
-                                            <div className="flex-1 text-sm p-3 text-gray-400 bg-transparent flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => addToast("File selection dialog would open here", 'info')}>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                                </svg>
-                                                Select a file from your computer...
-                                            </div>
+                                            <input
+                                                type="file"
+                                                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                                className="flex-1 text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none max-w-full text-gray-700"
+                                            />
                                         )}
                                         <div className="flex items-center px-2">
                                             <button
@@ -321,7 +346,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     <div className="pt-2">
                                         <button
                                             type="submit"
-                                            disabled={(!uploadMode && !newResourceUrl.trim()) || loading}
+                                            disabled={(!uploadMode && !newResourceUrl.trim()) || (uploadMode && !file) || loading}
                                             className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
                                         >
                                             Attach Resource
