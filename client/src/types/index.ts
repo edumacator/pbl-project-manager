@@ -55,11 +55,11 @@ export interface Task {
     team_id?: number;
     due_date?: string;
     created_at?: string;
-    updated_at?: string;
     dependencies?: number[];
     start_date?: string;
     end_date?: string; // Added
     duration_days?: number;
+    sort_order?: number; // Added
     is_blocked?: boolean; // Virtual property
     is_completable?: boolean; // Virtual property for gatekeeping
     deleted_at?: string; // Added
@@ -78,7 +78,6 @@ export interface ProjectTimeline {
         id: number;
         title: string;
         start_date: string | null;
-        end_date: string | null;
     };
     tasks: Task[];
     milestones: Milestone[];
