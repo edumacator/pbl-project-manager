@@ -16,8 +16,8 @@ class Task implements JsonSerializable
     public ?string $dueDate;
     public ?string $dependencies; // JSON string
     public ?string $startDate;
-    public ?string $endDate; // New
     public ?int $durationDays;
+    public int $sortOrder = 0; // New
     public ?string $deletedAt; // New
     public bool $isBlocked = false; // Virtual
     public bool $isCompletable = true; // Virtual, default true
@@ -42,8 +42,8 @@ class Task implements JsonSerializable
         ?string $updatedAt = null,
         ?string $assigneeName = null,
         ?string $createdAt = null,
-        ?string $endDate = null, // New
-        ?string $deletedAt = null // New
+        ?string $deletedAt = null, // New
+        int $sortOrder = 0 // New
     ) {
         $this->projectId = $projectId;
         $this->title = $title;
@@ -68,8 +68,8 @@ class Task implements JsonSerializable
         $this->updatedAt = $updatedAt;
         $this->assigneeName = $assigneeName;
         $this->createdAt = $createdAt;
-        $this->endDate = $endDate;
         $this->deletedAt = $deletedAt;
+        $this->sortOrder = $sortOrder;
     }
 
     public function jsonSerialize(): mixed
@@ -88,12 +88,12 @@ class Task implements JsonSerializable
             'is_blocked' => $this->isBlocked,
             'is_completable' => $this->isCompletable,
             'start_date' => $this->startDate,
-            'end_date' => $this->endDate,
             'duration_days' => $this->durationDays,
             'priority' => $this->priority,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
-            'deleted_at' => $this->deletedAt
+            'deleted_at' => $this->deletedAt,
+            'sort_order' => $this->sortOrder
         ];
     }
 }

@@ -100,45 +100,45 @@ class TaskService
     public function createTask(array $data, int $userId): Task
     {
         $startDate = $data['start_date'] ?? date('Y-m-d');
-        $endDate = $data['end_date'] ?? $data['due_date'] ?? null;
+        $dueDate = $data['due_date'] ?? null;
         $duration = isset($data['duration_days']) ? (int) $data['duration_days'] : null;
 
-        // If dependencies exist, start date should be the max end date of dependencies
+        // If dependencies exist, start date should be the max due date of dependencies
         $dependencies = $data['dependencies'] ?? [];
         if (!empty($dependencies)) {
-            $maxEndDate = null;
+            $maxDueDate = null;
             foreach ($dependencies as $depId) {
                 $depTask = $this->taskRepo->findById((int) $depId);
-                if ($depTask && $depTask->endDate) {
-                    if (!$maxEndDate || $depTask->endDate > $maxEndDate) {
-                        $maxEndDate = $depTask->endDate;
+                if ($depTask && $depTask->dueDate) {
+                    if (!$maxDueDate || $depTask->dueDate > $maxDueDate) {
+                        $maxDueDate = $depTask->dueDate;
                     }
                 }
             }
-            if ($maxEndDate) {
-                // Ensure dependent tasks start the day AFTER the max dependency end date
-                $maxDT = new \DateTime($maxEndDate);
+            if ($maxDueDate) {
+                // Ensure dependent tasks start the day AFTER the max dependency due date
+                $maxDT = new \DateTime($maxDueDate);
                 $maxDT->modify('+1 day');
                 $minStartStr = $maxDT->format('Y-m-d');
 
-                // Shift the start date, and shift the end date by difference
+                // Shift the start date, and shift the due date by difference
                 if ($startDate < $minStartStr) {
-                    if ($endDate && $startDate) {
+                    if ($dueDate && $startDate) {
                         $oldStart = new \DateTime($startDate);
                         $newStart = new \DateTime($minStartStr);
                         $diff = $oldStart->diff($newStart);
-                        $e = new \DateTime($endDate);
+                        $e = new \DateTime($dueDate);
                         $e->add($diff);
-                        $endDate = $e->format('Y-m-d');
+                        $dueDate = $e->format('Y-m-d');
                     }
                     $startDate = $minStartStr;
                 }
             }
         }
 
-        if ($startDate && $endDate && $duration === null) {
+        if ($startDate && $dueDate && $duration === null) {
             $s = new \DateTime($startDate);
-            $e = new \DateTime($endDate);
+            $e = new \DateTime($dueDate);
             // Ignore time
             $s->setTime(0, 0, 0);
             $e->setTime(0, 0, 0);
@@ -146,9 +146,9 @@ class TaskService
             $duration = max(1, $diffDays + 1);
         }
 
-        if (!$endDate && $startDate && $duration !== null) {
+        if (!$dueDate && $startDate && $duration !== null) {
             $daysToAdd = max(0, $duration - 1);
-            $endDate = date('Y-m-d', strtotime($startDate . " + $daysToAdd days"));
+            $dueDate = date('Y-m-d', strtotime($startDate . " + $daysToAdd days"));
         }
 
         if ($duration === null) {
@@ -163,7 +163,7 @@ class TaskService
             isset($data['assignee_id']) ? (int) $data['assignee_id'] : null,
             isset($data['team_id']) ? (int) $data['team_id'] : null,
             null,
-            $data['due_date'] ?? null,
+            $dueDate,
             $dependencies,
             $startDate,
             $duration,
@@ -171,7 +171,7 @@ class TaskService
             null,
             null,
             null,
-            $endDate
+            null
         );
 
         $id = $this->taskRepo->create($task);
@@ -208,20 +208,15 @@ class TaskService
             $task->priority = $data['priority'];
         if (isset($data['start_date']))
             $task->startDate = $data['start_date'];
-        if (isset($data['end_date']))
-            $task->endDate = $data['end_date'];
         if (isset($data['duration_days']))
             $task->durationDays = (int) $data['duration_days'];
-
-        // Fallback endDate to dueDate if updating dates without strict endDate
-        if (!isset($data['end_date']) && isset($data['due_date']) && $data['due_date']) {
-            $task->endDate = $data['due_date'];
-        }
+        if (isset($data['sort_order']))
+            $task->sortOrder = (int) $data['sort_order'];
 
         // Recompute duration based on dates if not explicitly provided
-        if (!isset($data['duration_days']) && $task->startDate && $task->endDate) {
+        if (!isset($data['duration_days']) && $task->startDate && $task->dueDate) {
             $s = new \DateTime($task->startDate);
-            $e = new \DateTime($task->endDate);
+            $e = new \DateTime($task->dueDate);
             $s->setTime(0, 0, 0);
             $e->setTime(0, 0, 0);
             $task->durationDays = max(1, $s->diff($e)->days + 1);
@@ -231,28 +226,28 @@ class TaskService
             $task->dependencies = json_encode($data['dependencies']);
 
             // Recalculate start date if dependencies changed
-            $maxEndDate = null;
+            $maxDueDate = null;
             foreach ($data['dependencies'] as $depId) {
                 $depTask = $this->taskRepo->findById((int) $depId);
-                if ($depTask && $depTask->endDate) {
-                    if (!$maxEndDate || $depTask->endDate > $maxEndDate) {
-                        $maxEndDate = $depTask->endDate;
+                if ($depTask && $depTask->dueDate) {
+                    if (!$maxDueDate || $depTask->dueDate > $maxDueDate) {
+                        $maxDueDate = $depTask->dueDate;
                     }
                 }
             }
-            if ($maxEndDate) {
-                // Ensure dependent tasks start the day AFTER the max dependency end date
-                $maxDT = new \DateTime($maxEndDate);
+            if ($maxDueDate) {
+                // Ensure dependent tasks start the day AFTER the max dependency due date
+                $maxDT = new \DateTime($maxDueDate);
                 $maxDT->modify('+1 day');
                 $minStartStr = $maxDT->format('Y-m-d');
 
                 // If user selected date is before the allowed start date, force shift it!
                 if ($task->startDate < $minStartStr) {
                     $task->startDate = $minStartStr;
-                    // If we update start date, recalculate end date based on actual duration properly
+                    // If we update start date, recalculate due date based on actual duration properly
                     if ($task->durationDays) {
                         $daysToAdd = max(0, $task->durationDays - 1);
-                        $task->endDate = date('Y-m-d', strtotime($task->startDate . " + {$daysToAdd} days"));
+                        $task->dueDate = date('Y-m-d', strtotime($task->startDate . " + {$daysToAdd} days"));
                     }
                 }
             }

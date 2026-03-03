@@ -95,11 +95,9 @@ class TimelineService
                 $startDate = time();
             }
 
-            // Determine End Date: Prioritize stored end_date
+            // Determine End Date: Prioritize stored due_date
             $endDate = null;
-            if ($task->endDate) {
-                $endDate = strtotime($task->endDate);
-            } elseif ($task->dueDate) {
+            if ($task->dueDate) {
                 $endDate = strtotime($task->dueDate);
             } else {
                 $durationSeconds = ($task->durationDays ?: 1) * 86400;
@@ -135,7 +133,7 @@ class TimelineService
 
             // Override dates with calculated ones for display
             $data['start_date'] = date('Y-m-d', $dates['start']);
-            $data['end_date'] = date('Y-m-d', $dates['end']);
+            $data['due_date'] = date('Y-m-d', $dates['end']);
 
             // Calculate effective duration in days
             $data['duration_days'] = ceil(($dates['end'] - $dates['start']) / 86400) ?: 1;
@@ -164,7 +162,7 @@ class TimelineService
                 'id' => $project->id,
                 'title' => $project->title,
                 'start_date' => $project->createdAt ? date('Y-m-d', strtotime($project->createdAt)) : null,
-                'end_date' => $project->dueDate,
+                'due_date' => $project->dueDate,
             ],
             'tasks' => $timelineTasks,
             'milestones' => $allCheckpoints

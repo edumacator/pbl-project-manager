@@ -18,8 +18,8 @@ class TaskRepository implements TaskRepositoryInterface
     public function create(Task $task): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, due_date, dependencies, start_date, duration_days, end_date)
-            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :due_date, :dependencies, :start_date, :duration_days, :end_date)
+            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, due_date, dependencies, start_date, duration_days, sort_order)
+            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :due_date, :dependencies, :start_date, :duration_days, :sort_order)
         ");
 
         $stmt->execute([
@@ -30,10 +30,10 @@ class TaskRepository implements TaskRepositoryInterface
             ':assignee_id' => $task->assigneeId,
             ':team_id' => $task->teamId,
             ':due_date' => $task->dueDate,
-            ':dependencies' => $task->dependencies ? json_encode($task->dependencies) : null,
-            ':start_date' => $task->startDate ?? null,
-            ':duration_days' => $task->durationDays ?? 1,
-            ':end_date' => $task->endDate ?? null
+            'dependencies' => $task->dependencies ? json_encode($task->dependencies) : null,
+            'start_date' => $task->startDate ?? null,
+            'duration_days' => $task->durationDays ?? 1,
+            'sort_order' => $task->sortOrder
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -67,6 +67,8 @@ class TaskRepository implements TaskRepositoryInterface
             $sql .= " AND t.deleted_at IS NULL";
         }
 
+        $sql .= " ORDER BY t.sort_order ASC, t.start_date ASC, t.id ASC";
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll();
@@ -78,7 +80,7 @@ class TaskRepository implements TaskRepositoryInterface
     {
         $stmt = $this->pdo->prepare("
             UPDATE tasks 
-            SET title = :title, description = :description, status = :status, assignee_id = :assignee_id, team_id = :team_id, due_date = :due_date, dependencies = :dependencies, start_date = :start_date, duration_days = :duration_days, priority = :priority, end_date = :end_date, deleted_at = :deleted_at
+            SET title = :title, description = :description, status = :status, assignee_id = :assignee_id, team_id = :team_id, due_date = :due_date, dependencies = :dependencies, start_date = :start_date, duration_days = :duration_days, priority = :priority, deleted_at = :deleted_at, sort_order = :sort_order
             WHERE id = :id
         ");
 
@@ -93,8 +95,8 @@ class TaskRepository implements TaskRepositoryInterface
             ':start_date' => $task->startDate ?? null,
             ':duration_days' => $task->durationDays ?? 1,
             ':priority' => $task->priority,
-            ':end_date' => $task->endDate ?? null,
             ':deleted_at' => $task->deletedAt ?? null,
+            ':sort_order' => $task->sortOrder,
             ':id' => $task->id
         ]);
     }
@@ -117,8 +119,8 @@ class TaskRepository implements TaskRepositoryInterface
             $row['updated_at'] ?? null,
             $row['assignee_name'] ?? null,
             $row['created_at'] ?? null,
-            $row['end_date'] ?? null,
-            $row['deleted_at'] ?? null
+            $row['deleted_at'] ?? null,
+            (int) ($row['sort_order'] ?? 0)
         );
     }
 
