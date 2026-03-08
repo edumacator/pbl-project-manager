@@ -50,4 +50,9 @@ class TeamService
     {
         return $this->teamRepo->removeMember($teamId, $userId);
     }
+
+    public function deleteTeam(int $teamId): bool
+    {
+        return $this->teamRepo->delete($teamId);
+    }
 }

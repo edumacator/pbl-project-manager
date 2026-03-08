@@ -1,11 +1,15 @@
 import React from 'react';
 import { Task } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
+import { Plus } from 'lucide-react';
 
 interface TeamKanbanProps {
     tasks: Task[];
     onTaskMove?: (taskId: number, newStatus: string) => void;
     onTaskClaim?: (taskId: number) => void;
     onTaskClick?: (task: Task) => void;
+    onTaskAdd?: (status: string) => void;
 }
 
 const COLUMNS = [
@@ -14,43 +18,86 @@ const COLUMNS = [
     { id: 'done', title: 'Done' }
 ];
 
-export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTaskClaim, onTaskClick }) => {
+const getInitials = (name?: string) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+};
+
+export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTaskClaim, onTaskClick, onTaskAdd }) => {
+    const { user } = useAuth();
+    const { addToast } = useToast();
+
     return (
         <div className="flex h-full overflow-x-auto p-4 space-x-4">
             {COLUMNS.map(column => (
-                <div key={column.id} className="min-w-[280px] w-72 flex-shrink-0 flex flex-col bg-gray-50 rounded-lg h-full">
-                    <div className="p-3 border-b border-gray-100 font-medium text-gray-700 flex justify-between items-center">
+                <div
+                    key={column.id}
+                    className="bg-gray-100 p-4 rounded-xl min-w-[300px] flex-shrink-0 flex flex-col h-full"
+                    onDragOver={(e) => { e.preventDefault(); }}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        const taskId = Number(e.dataTransfer.getData("taskId"));
+                        if (taskId && onTaskMove) {
+                            onTaskMove(taskId, column.id);
+                        }
+                    }}
+                >
+                    <h3 className="font-semibold text-gray-700 mb-4 flex items-center justify-between">
                         {column.title}
-                        <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                        <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-xs">
                             {tasks.filter(t => t.status === column.id).length}
                         </span>
-                    </div>
-                    <div className="flex-1 p-2 overflow-y-auto space-y-2">
-                        {tasks.filter(t => t.status === column.id).map(task => (
-                            <div
-                                key={task.id}
-                                className="bg-white p-3 rounded shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow"
-                                onClick={() => onTaskClick?.(task)}
-                            >
-                                <div className="text-sm font-medium text-gray-900 mb-1">{task.title}</div>
-                                {task.assignee_id ? (
-                                    <div className="flex items-center justify-end mt-2">
-                                        <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-xs flex items-center justify-center font-medium" title={task.assignee_name || `User ${task.assignee_id}`}>
-                                            {task.assignee_name ? task.assignee_name.charAt(0).toUpperCase() : 'U'}
+                    </h3>
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                        {tasks.filter(t => t.status === column.id).map(task => {
+                            const isOwner = task.assignee_id === user?.id;
+                            return (
+                                <div
+                                    key={task.id}
+                                    draggable={true} // Always draggable so we can intercept the drag attempt and show the error toast
+                                    onDragStart={(e) => {
+                                        if (isOwner) {
+                                            e.dataTransfer.setData("taskId", task.id.toString());
+                                        } else {
+                                            e.preventDefault();
+                                            addToast("You can only move tasks assigned to you.", 'error');
+                                        }
+                                    }}
+                                    className={`bg-white p-4 rounded-lg shadow-sm border ${!task.is_completable && column.id !== 'done' ? 'border-l-4 border-l-amber-400 border-y-gray-200 border-r-gray-200' : 'border-gray-200'} ${isOwner ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:bg-gray-50'} transition-all`}
+                                    onClick={() => onTaskClick?.(task)}
+                                    title={!task.is_completable ? "Critique Required before Done" : ""}
+                                >
+                                    <div className="text-sm font-medium text-gray-900 mb-1">{task.title}</div>
+                                    {task.assignee_id ? (
+                                        <div className="flex items-center justify-end mt-2">
+                                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-[10px] flex items-center justify-center font-bold" title={task.assignee_name || `User ${task.assignee_id}`}>
+                                                {getInitials(task.assignee_name) || `U${task.assignee_id}`}
+                                            </div>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex justify-end mt-2">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); onTaskClaim?.(task.id); }}
-                                            className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
-                                        >
-                                            Claim Task
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                    ) : (
+                                        <div className="flex justify-end mt-2">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onTaskClaim?.(task.id); }}
+                                                className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
+                                            >
+                                                Claim Task
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {onTaskAdd && (
+                            <button
+                                onClick={() => onTaskAdd(column.id)}
+                                className="w-full py-2 mt-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg text-sm dashed border border-transparent hover:border-gray-300 flex items-center justify-center transition-colors"
+                            >
+                                <Plus className="w-4 h-4 mr-1" /> Add Task
+                            </button>
+                        )}
                     </div>
                 </div>
             ))}

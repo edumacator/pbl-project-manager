@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS project_resources (
     project_id INT NOT NULL,
     team_id INT NULL,
     task_id INT NULL,
+    user_id INT NULL,
     title VARCHAR(255) NOT NULL,
     url TEXT NOT NULL,
     type ENUM('link', 'file') DEFAULT 'link',
@@ -192,6 +193,8 @@ CREATE TABLE IF NOT EXISTS project_resources (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE
+    SET NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE
     SET NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 -- ---------------------------------------------------------

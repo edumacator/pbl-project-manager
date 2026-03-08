@@ -11,6 +11,7 @@ class Task implements JsonSerializable
     public string $title;
     public ?string $description;
     public string $status; // 'todo', 'doing', 'done'
+    public bool $isStuck = false; // New
     public ?int $assigneeId;
     public ?int $teamId;
     public ?string $dueDate;
@@ -38,6 +39,7 @@ class Task implements JsonSerializable
         $dependencies = null, // Can be array or JSON string
         ?string $startDate = null,
         ?int $durationDays = 1,
+        bool $isStuck = false, // New
         string $priority = 'medium',
         ?string $updatedAt = null,
         ?string $assigneeName = null,
@@ -64,6 +66,7 @@ class Task implements JsonSerializable
 
         $this->startDate = $startDate;
         $this->durationDays = $durationDays;
+        $this->isStuck = $isStuck;
         $this->priority = $priority;
         $this->updatedAt = $updatedAt;
         $this->assigneeName = $assigneeName;
@@ -80,6 +83,7 @@ class Task implements JsonSerializable
             'title' => $this->title,
             'description' => $this->description,
             'status' => $this->status,
+            'is_stuck' => $this->isStuck,
             'assignee_id' => $this->assigneeId,
             'assignee_name' => $this->assigneeName,
             'team_id' => $this->teamId,

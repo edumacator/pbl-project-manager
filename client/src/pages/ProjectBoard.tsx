@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, API_BASE } from '../api/client';
 import { Task, Project, Team, User } from '../types';
-import { Plus, Pencil, Trash2, Calendar, Users, ChevronDown, ChevronRight, ExternalLink, UserPlus, UserCheck, Archive, BarChart } from 'lucide-react';
+import { Plus, Pencil, Trash2, Calendar, Users, ChevronDown, ChevronRight, ExternalLink, UserPlus, UserCheck, Archive, BarChart, Edit2, X } from 'lucide-react';
 import { CreateTaskModal } from '../components/CreateTaskModal';
 import { TeamMembersModal } from '../components/TeamMembersModal';
 import { CritiqueModal } from '../components/CritiqueModal';
@@ -13,6 +13,14 @@ import { TeamContributionsModal } from '../components/TeamContributionsModal';
 import { ProjectHomeView } from '../components/ProjectHomeView';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+
+const getInitials = (name?: string) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+};
 
 const KanbanColumn: React.FC<{
     title: string;
@@ -94,8 +102,8 @@ const KanbanColumn: React.FC<{
                                     </button>
                                 )}
                                 {task.assignee_id && (
-                                    <div className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-[10px]" title={`User ${task.assignee_id}`}>
-                                        U{task.assignee_id}
+                                    <div className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-[10px]" title={task.assignee_name || `User ${task.assignee_id}`}>
+                                        {getInitials(task.assignee_name) || `U${task.assignee_id}`}
                                     </div>
                                 )}
                             </div>
@@ -143,6 +151,14 @@ const ProjectBoard: React.FC = () => {
 
     // Peer Assignment Modal State
     const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+
+    // Add Resource Modal State
+    const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+    const [resourceType, setResourceType] = useState<'link' | 'file'>('link');
+    const [resourceUrl, setResourceUrl] = useState('');
+    const [resourceTitle, setResourceTitle] = useState('');
+    const [resourceFile, setResourceFile] = useState<File | null>(null);
+    const [isSubmittingResource, setIsSubmittingResource] = useState(false);
 
     const toggleTeamExpand = (teamId: number) => {
         const newSet = new Set(expandedTeamIds);
@@ -243,6 +259,97 @@ const ProjectBoard: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const teamIdParam = searchParams.get('team_id');
 
+    const fetchProjectResources = async () => {
+        if (!id) return;
+        try {
+            const resData = await api.get<any[]>(`/projects/${id}/resources`);
+            setProjectResources(resData || []);
+        } catch (e) {
+            console.error("Failed to fetch project resources", e);
+        }
+    };
+
+    const handleAddResourceSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (resourceType === 'link' && !resourceUrl.trim()) return;
+        if (resourceType === 'file' && !resourceFile) return;
+
+        try {
+            setIsSubmittingResource(true);
+            let resData;
+
+            if (resourceType === 'file' && resourceFile) {
+                const formData = new FormData();
+                formData.append('file', resourceFile);
+                formData.append('title', resourceTitle.trim() || resourceFile.name);
+
+                resData = await fetch(`${API_BASE}/projects/${id}/resources/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    },
+                    body: formData
+                }).then(async (res) => {
+                    if (!res.ok) throw new Error('Upload failed');
+                    return res.json();
+                });
+            } else {
+                const response = await api.post(`/projects/${id}/resources`, {
+                    title: resourceTitle.trim(),
+                    url: resourceUrl.trim(),
+                    type: 'link'
+                });
+                resData = { data: { resource: response } };
+            }
+
+            if (resData && (resData as any).data?.resource) {
+                const newRes = (resData as any).data.resource;
+                setProjectResources([newRes, ...projectResources]);
+                setResourceUrl('');
+                setResourceTitle('');
+                setResourceFile(null);
+                setIsResourceModalOpen(false);
+                addToast("Resource added successfully.", "success");
+            }
+        } catch (error) {
+            addToast("Failed to add resource.", "error");
+            console.error(error);
+        } finally {
+            setIsSubmittingResource(false);
+        }
+    };
+
+    const handleDeleteResource = async (resourceId: number) => {
+        if (!window.confirm('Are you sure you want to delete this resource?')) return;
+        try {
+            await api.delete(`/resources/${resourceId}`);
+            addToast('Resource deleted', 'success');
+            fetchProjectResources();
+        } catch (e) {
+            console.error('Failed to delete resource', e);
+            addToast('Failed to delete resource', 'error');
+        }
+    };
+
+    const handleEditResourceClick = (res: any) => {
+        // We'll need a modal or direct navigation for this, 
+        // passing for now as Teacher ProjectLibrary doesn't currently wire up an Edit Modal explicitly like TeamResources does.
+        // Usually, the teacher navigates to the team to edit, but we can implement a quick path later if requested.
+        addToast('Resource marked for edit (Modal injection pending integration)', 'info');
+    };
+
+    const getResourceLabel = (res: any) => {
+        if (res.title) return res.title;
+        if (res.type === 'file') {
+            const urlParts = res.url.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const match = fileName.match(/res_[^_]+_(.+)/);
+            return match ? match[1] : fileName;
+        }
+        return res.url;
+    };
+
     useEffect(() => {
         if (teamIdParam) {
             const tid = Number(teamIdParam);
@@ -316,6 +423,23 @@ const ProjectBoard: React.FC = () => {
         }
     };
 
+    const handleDeleteTeam = async (teamId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm('Are you sure you want to delete this team? All associated tasks will be removed. This cannot be undone.')) return;
+        try {
+            await api.delete(`/teams/${teamId}`);
+            setTeams(prev => prev.filter(t => t.id !== teamId));
+            if (selectedTeamId === teamId) {
+                setSearchParams({});
+                setSelectedTeamId(null);
+            }
+            addToast('Team deleted', 'success');
+        } catch (error) {
+            console.error('Failed to delete team:', error);
+            addToast('Failed to delete team', 'error');
+        }
+    };
+
     // --- Drag and Drop & Status Logic ---
 
     const updateTaskStatus = async (taskId: number, newStatus: string) => {
@@ -362,7 +486,7 @@ const ProjectBoard: React.FC = () => {
                 updateTaskStatus(critiqueTask.id, 'done');
                 setTasks(prev => prev.map(t => t.id === critiqueTask.id ? { ...t, is_completable: true } : t));
             } else {
-                setTasks(prev => prev.map(t => t.id === critiqueTask.id ? { ...t, status: 'in_progress', is_completable: false } : t));
+                setTasks(prev => prev.map(t => t.id === critiqueTask.id ? { ...t, status: 'doing', is_completable: false } : t));
             }
 
             addToast(requiresRevision ? "Feedback submitted. Revision requested." : "Feedback submitted. Task completed!", 'success');
@@ -588,7 +712,21 @@ const ProjectBoard: React.FC = () => {
                         />
                     ) : (
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 overflow-y-auto">
-                            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">Project Library</h2>
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">Project Library</h2>
+                                <button
+                                    onClick={() => {
+                                        setResourceType('link');
+                                        setResourceUrl('');
+                                        setResourceTitle('');
+                                        setResourceFile(null);
+                                        setIsResourceModalOpen(true);
+                                    }}
+                                    className="flex items-center text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 transition shadow-sm"
+                                >
+                                    <Plus className="w-4 h-4 mr-1" /> Add Resource
+                                </button>
+                            </div>
                             {projectResources.length === 0 ? (
                                 <div className="text-gray-400 italic py-8 text-center border-2 border-dashed border-gray-100 rounded-xl">No resources attached to this project or its tasks yet.</div>
                             ) : (
@@ -598,11 +736,23 @@ const ProjectBoard: React.FC = () => {
                                         const relatedTask = res.task_id ? tasks.find((t: any) => t.id === res.task_id) : null;
                                         return (
                                             <div key={res.id} className="p-4 bg-gray-50 hover:bg-white border hover:border-indigo-200 border-gray-100 rounded-lg shadow-sm transition-all group">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h3 className="font-semibold text-gray-900 line-clamp-1 flex-1 pr-2" title={res.title}>{res.title}</h3>
-                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-indigo-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100">
-                                                        <ExternalLink className="w-3.5 h-3.5" />
-                                                    </a>
+                                                <div className="flex justify-between items-start mb-2 group-hover:pr-12 relative">
+                                                    <h3 className="font-semibold text-gray-900 line-clamp-1 flex-1 pr-2" title={getResourceLabel(res)}>{getResourceLabel(res)}</h3>
+                                                    <div className="flex gap-1 absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-indigo-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
+                                                            <ExternalLink className="w-3.5 h-3.5" />
+                                                        </a>
+                                                        {(user?.role === 'teacher' || res.user_id === user?.id) && (
+                                                            <>
+                                                                <button onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }} className="text-gray-400 hover:text-emerald-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
+                                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }} className="text-gray-400 hover:text-red-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div className="text-xs text-gray-500 mb-3 break-all line-clamp-1 flex items-center gap-1" title={res.url}>
                                                     <div className="px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 font-medium uppercase text-[10px] tracking-wide inline-block">{res.type}</div>
@@ -676,6 +826,9 @@ const ProjectBoard: React.FC = () => {
                                                             <span className="text-xs text-gray-400 font-normal">({teamTasks.length} tasks)</span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
+                                                            <button onClick={(e) => handleDeleteTeam(team.id, e)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete Team">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
                                                             <button onClick={(e) => { e.stopPropagation(); setSearchParams({ team_id: team.id.toString() }); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md flex items-center gap-1 text-sm font-medium transition-colors" title="Go to Board">
                                                                 <span>Open Board</span><ExternalLink className="w-3.5 h-3.5" />
                                                             </button>
@@ -730,6 +883,83 @@ const ProjectBoard: React.FC = () => {
                     isOpen={isContributionsOpen}
                     onClose={() => setIsContributionsOpen(false)}
                 />
+            )}
+
+            {isResourceModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h2 className="text-lg font-bold text-gray-900">Add a New Resource</h2>
+                            <button onClick={() => setIsResourceModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddResourceSubmit} className="p-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Type</label>
+                                    <select
+                                        value={resourceType}
+                                        onChange={(e) => setResourceType(e.target.value as 'link' | 'file')}
+                                        className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                    >
+                                        <option value="link">External Link</option>
+                                        <option value="file">Document/File</option>
+                                    </select>
+                                </div>
+                                {resourceType === 'link' ? (
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">URL / Link Location *</label>
+                                        <input
+                                            type="url"
+                                            required
+                                            value={resourceUrl}
+                                            onChange={(e) => setResourceUrl(e.target.value)}
+                                            placeholder="https://..."
+                                            className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Upload File *</label>
+                                        <input
+                                            type="file"
+                                            required
+                                            onChange={(e) => setResourceFile(e.target.files?.[0] || null)}
+                                            className="w-full text-sm p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                        />
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Title (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={resourceTitle}
+                                        onChange={(e) => setResourceTitle(e.target.value)}
+                                        placeholder="e.g. Research Document"
+                                        className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    />
+                                </div>
+                            </div>
+                            <div className="mt-8 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsResourceModalOpen(false)}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmittingResource}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 flex items-center"
+                                >
+                                    {isSubmittingResource ? 'Adding...' : 'Add Resource'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
         </div>
     );

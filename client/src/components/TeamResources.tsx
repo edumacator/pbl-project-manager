@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
-import { Link as LinkIcon, ExternalLink, Plus, Book, FileText } from 'lucide-react';
+import { Link as LinkIcon, ExternalLink, Plus, Book, FileText, X, Edit2, Trash2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ProjectResource {
     id: number;
     project_id: number;
     team_id: number | null;
     task_id: number | null;
+    user_id?: number;
     title: string;
     url: string;
     type: 'link' | 'file';
@@ -20,7 +22,11 @@ interface TeamResourcesProps {
 }
 
 export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId }) => {
-    const [resources, setResources] = useState<ProjectResource[]>([]);
+    const { user } = useAuth();
+    const isTeacher = user?.role === 'teacher';
+
+    const [teamResources, setTeamResources] = useState<ProjectResource[]>([]);
+    const [projectResources, setProjectResources] = useState<ProjectResource[]>([]);
     const [loading, setLoading] = useState(true);
     const { addToast } = useToast();
 
@@ -29,13 +35,53 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
     const [url, setUrl] = useState('');
     const [title, setTitle] = useState('');
     const [file, setFile] = useState<File | null>(null);
+    const [shareWithProject, setShareWithProject] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [editingResource, setEditingResource] = useState<ProjectResource | null>(null);
+
+    const handleEditResourceClick = (res: ProjectResource) => {
+        setEditingResource(res);
+        setTitle(res.title);
+        setUrl(res.url);
+        setType(res.type as 'link' | 'file');
+        setFile(null);
+        setShareWithProject(res.team_id === null);
+        setShowModal(true);
+    };
+
+    const handleDeleteResource = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this resource?')) return;
+        try {
+            await api.delete(`/resources/${id}`);
+            addToast('Resource deleted', 'success');
+            setShowModal(false);
+            fetchResources();
+        } catch (e) {
+            addToast('Failed to delete resource', 'error');
+        }
+    };
+
+    const getResourceLabel = (res: ProjectResource) => {
+        if (res.title) return res.title;
+        if (res.type === 'file') {
+            const urlParts = res.url.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const match = fileName.match(/res_[^_]+_(.+)/);
+            return match ? match[1] : fileName;
+        }
+        return res.url;
+    };
 
     const fetchResources = async () => {
         try {
             setLoading(true);
-            const data = await api.get<ProjectResource[]>(`/teams/${teamId}/resources`);
-            setResources(data || []);
+            const [teamData, projectData] = await Promise.all([
+                api.get<ProjectResource[]>(`/teams/${teamId}/resources`),
+                api.get<ProjectResource[]>(`/projects/${projectId}/resources`)
+            ]);
+            setTeamResources(teamData || []);
+            setProjectResources((projectData || []).filter(r => r.team_id === null));
         } catch (error) {
             addToast("Failed to load team resources.", "error");
             console.error(error);
@@ -58,11 +104,43 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
             setIsSubmitting(true);
             let resData;
 
+            if (editingResource) {
+                resData = await api.put(`/resources/${editingResource.id}`, {
+                    title: title.trim(),
+                    url: url.trim() || editingResource.url,
+                    type: type,
+                    team_id: shareWithProject ? null : teamId
+                });
+
+                if (resData && (resData as any).data?.resource) {
+                    const updatedRes = (resData as any).data.resource;
+                    setTeamResources(prev => prev.filter(r => r.id !== updatedRes.id));
+                    setProjectResources(prev => prev.filter(r => r.id !== updatedRes.id));
+
+                    if (updatedRes.team_id === null) {
+                        setProjectResources(prev => [updatedRes, ...prev]);
+                    } else {
+                        setTeamResources(prev => [updatedRes, ...prev]);
+                    }
+
+                    setUrl('');
+                    setTitle('');
+                    setFile(null);
+                    setShareWithProject(false);
+                    setShowModal(false);
+                    setEditingResource(null);
+                    addToast("Resource updated successfully.", "success");
+                }
+                return;
+            }
+
             if (type === 'file' && file) {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('title', title.trim() || file.name);
-                formData.append('team_id', teamId.toString());
+                if (!shareWithProject) {
+                    formData.append('team_id', teamId.toString());
+                }
 
                 resData = await fetch(`${API_BASE}/projects/${projectId}/resources/upload`, {
                     method: 'POST',
@@ -75,19 +153,27 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                     return res.json();
                 });
             } else {
-                resData = await api.post(`/projects/${projectId}/resources`, {
-                    team_id: teamId,
+                const response = await api.post(`/projects/${projectId}/resources`, {
+                    team_id: shareWithProject ? null : teamId,
                     title: title.trim(),
                     url: url.trim(),
                     type: 'link'
                 });
+                resData = { data: { resource: response } };
             }
 
             if (resData && (resData as any).data?.resource) {
-                setResources([(resData as any).data.resource, ...resources]);
+                const newRes = (resData as any).data.resource;
+                if (shareWithProject) {
+                    setProjectResources([newRes, ...projectResources]);
+                } else {
+                    setTeamResources([newRes, ...teamResources]);
+                }
                 setUrl('');
                 setTitle('');
                 setFile(null);
+                setShareWithProject(false);
+                setShowModal(false);
                 addToast("Resource added successfully.", "success");
             }
         } catch (error) {
@@ -103,8 +189,8 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
     }
 
     // Separate general resources from task resources
-    const generalResources = resources.filter(r => !r.task_id);
-    const taskResources = resources.filter(r => r.task_id);
+    const generalTeamResources = teamResources.filter(r => !r.task_id);
+    const taskResources = teamResources.filter(r => r.task_id);
 
     return (
         <div className="h-full flex flex-col p-6 overflow-y-auto w-full max-w-5xl mx-auto space-y-6">
@@ -114,18 +200,191 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                 <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                     <div>
                         <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                            <Book className="w-5 h-5 mr-2 text-indigo-600" /> General Resources
+                            <Book className="w-5 h-5 mr-2 text-indigo-600" /> Resources
                         </h2>
-                        <p className="text-sm text-gray-500 mt-1">Files and links shared with the entire team.</p>
+                        <p className="text-sm text-gray-500 mt-1">Files and links shared with your team or the entire class.</p>
                     </div>
+                    <button
+                        onClick={() => {
+                            setEditingResource(null);
+                            setUrl('');
+                            setTitle('');
+                            setFile(null);
+                            setType('link');
+                            setShareWithProject(false);
+                            setShowModal(true);
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm"
+                    >
+                        <Plus className="w-4 h-4 mr-2" /> Add Resource
+                    </button>
                 </div>
 
                 <div className="p-6">
-                    {/* Upload Form */}
-                    <form onSubmit={handleSubmit} className="mb-8 border border-gray-100 rounded-xl p-5 bg-gray-50">
-                        <h3 className="text-sm font-medium text-gray-900 mb-4">Add a new resource</h3>
-                        <div className="flex gap-4 items-start">
-                            <div className="flex-1 space-y-4">
+                    {/* General Resources List */}
+                    {projectResources.length === 0 && generalTeamResources.length === 0 ? (
+                        <div className="text-center py-10 bg-white border-2 border-dashed border-gray-200 rounded-xl">
+                            <Book className="mx-auto h-12 w-12 text-gray-300" />
+                            <h3 className="mt-2 text-sm font-medium text-gray-900">No resources</h3>
+                            <p className="mt-1 text-sm text-gray-500">No general resources have been added yet.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-8">
+                            {projectResources.length > 0 && (
+                                <div>
+                                    <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                                        <Book className="w-4 h-4 mr-2 text-emerald-600" /> Class Library Resources
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {projectResources.map(res => (
+                                            <div key={res.id} className="group relative flex items-start p-4 hover:bg-emerald-50/50 border border-emerald-100 hover:border-emerald-200 rounded-xl transition-all shadow-sm overflow-hidden">
+                                                <a
+                                                    href={res.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex-1 min-w-0 flex items-start"
+                                                >
+                                                    <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase px-2 py-0.5 rounded-bl-lg tracking-wider">Project Library</div>
+                                                    <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-lg mr-4 shrink-0">
+                                                        {res.type === 'file' ? <FileText className="w-5 h-5" /> : <LinkIcon className="w-5 h-5" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 mt-1">
+                                                        <h4 className="text-gray-900 font-medium text-sm truncate group-hover:text-emerald-700 relative pr-6">
+                                                            {getResourceLabel(res)}
+                                                            <ExternalLink className="w-3.5 h-3.5 absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        </h4>
+                                                        <p className="text-gray-500 text-xs mt-1 truncate">{res.url}</p>
+                                                        <p className="text-gray-400 text-xs mt-2 uppercase tracking-wide">
+                                                            Added {new Date(res.created_at).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                </a>
+                                                {(isTeacher || res.user_id === user?.id) && (
+                                                    <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10">
+                                                        <button onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors shadow-sm border border-gray-200 bg-gray-50">
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }} className="p-2 text-gray-500 hover:text-red-600 hover:bg-white rounded-lg transition-colors shadow-sm border border-gray-200 bg-gray-50">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {generalTeamResources.length > 0 && (
+                                <div>
+                                    <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                                        <Book className="w-4 h-4 mr-2 text-indigo-600" /> Team Specific Resources
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {generalTeamResources.map(res => (
+                                            <div key={res.id} className="group relative flex items-start p-4 hover:bg-indigo-50/50 border border-gray-100 hover:border-indigo-100 rounded-xl transition-all overflow-hidden">
+                                                <a
+                                                    href={res.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex-1 min-w-0 flex items-start"
+                                                >
+                                                    <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-lg mr-4 shrink-0">
+                                                        {res.type === 'file' ? <FileText className="w-5 h-5" /> : <LinkIcon className="w-5 h-5" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 mt-1">
+                                                        <h4 className="text-gray-900 font-medium text-sm truncate group-hover:text-indigo-700 relative pr-6">
+                                                            {getResourceLabel(res)}
+                                                            <ExternalLink className="w-3.5 h-3.5 absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        </h4>
+                                                        <p className="text-gray-500 text-xs mt-1 truncate">{res.url}</p>
+                                                        <p className="text-gray-400 text-xs mt-2 uppercase tracking-wide">
+                                                            Added {new Date(res.created_at).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                </a>
+                                                {(isTeacher || res.user_id === user?.id) && (
+                                                    <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10">
+                                                        <button onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors shadow-sm border border-gray-200 bg-gray-50">
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }} className="p-2 text-gray-500 hover:text-red-600 hover:bg-white rounded-lg transition-colors shadow-sm border border-gray-200 bg-gray-50">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Task Resources */}
+            {
+                taskResources.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+                            <h2 className="text-lg font-semibold text-gray-900">Task Attachments</h2>
+                            <p className="text-sm text-gray-500 mt-1">Resources attached to specific tasks in your workflow.</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Resource</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Related Task ID</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Added</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {taskResources.map((res) => (
+                                        <tr key={res.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="shrink-0 flex items-center justify-center p-1.5 rounded-md bg-gray-100 text-gray-500 mr-3">
+                                                        {res.type === 'file' ? <FileText className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+                                                    </div>
+                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-indigo-600 hover:text-indigo-900 truncate max-w-xs block">
+                                                        {getResourceLabel(res)}
+                                                    </a>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 uppercase">
+                                                    {res.type}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                Task #{res.task_id}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {new Date(res.created_at).toLocaleDateString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )
+            }
+
+            {showModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h2 className="text-lg font-bold text-gray-900">Add a New Resource</h2>
+                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6">
+                            <div className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Type</label>
                                     <select
@@ -139,7 +398,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                                 </div>
                                 {type === 'link' ? (
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">URL / Link Location</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">URL / Link Location *</label>
                                         <input
                                             type="url"
                                             required
@@ -151,7 +410,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                                     </div>
                                 ) : (
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Upload File</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Upload File *</label>
                                         <input
                                             type="file"
                                             required
@@ -170,101 +429,36 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                                         className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                     />
                                 </div>
+                                <div className="flex items-center mt-2 ml-1">
+                                    <input
+                                        type="checkbox"
+                                        id="shareWithProjectModal"
+                                        checked={shareWithProject}
+                                        onChange={(e) => setShareWithProject(e.target.checked)}
+                                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                    />
+                                    <label htmlFor="shareWithProjectModal" className="ml-2 block text-sm text-gray-700 font-medium cursor-pointer">
+                                        Share with entire Project Class
+                                    </label>
+                                </div>
                             </div>
-                            <div className="mt-6 pt-1">
+                            <div className="mt-8 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || (type === 'link' ? !url.trim() : !file)}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center"
+                                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center shadow-sm"
                                 >
-                                    {isSubmitting ? 'Adding...' : <><Plus className="w-4 h-4 mr-2" /> Add Resource</>}
+                                    {isSubmitting ? 'Adding...' : 'Add Resource'}
                                 </button>
                             </div>
-                        </div>
-                    </form>
-
-                    {/* General Resources List */}
-                    {generalResources.length === 0 ? (
-                        <div className="text-center py-10 bg-white border-2 border-dashed border-gray-200 rounded-xl">
-                            <Book className="mx-auto h-12 w-12 text-gray-300" />
-                            <h3 className="mt-2 text-sm font-medium text-gray-900">No resources</h3>
-                            <p className="mt-1 text-sm text-gray-500">Your team hasn't added any general resources yet.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {generalResources.map(res => (
-                                <a
-                                    key={res.id}
-                                    href={res.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group flex items-start p-4 hover:bg-indigo-50/50 border border-gray-100 hover:border-indigo-100 rounded-xl transition-all"
-                                >
-                                    <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-lg mr-4 shrink-0">
-                                        {res.type === 'file' ? <FileText className="w-5 h-5" /> : <LinkIcon className="w-5 h-5" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="text-gray-900 font-medium text-sm truncate group-hover:text-indigo-700 relative pr-6">
-                                            {res.title || res.url}
-                                            <ExternalLink className="w-3.5 h-3.5 absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </h4>
-                                        <p className="text-gray-500 text-xs mt-1 truncate">{res.url}</p>
-                                        <p className="text-gray-400 text-xs mt-2 uppercase tracking-wide">
-                                            Added {new Date(res.created_at).toLocaleDateString()}
-                                        </p>
-                                    </div>
-                                </a>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Task Resources */}
-            {taskResources.length > 0 && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
-                        <h2 className="text-lg font-semibold text-gray-900">Task Attachments</h2>
-                        <p className="text-sm text-gray-500 mt-1">Resources attached to specific tasks in your workflow.</p>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Resource</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Related Task ID</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Added</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {taskResources.map((res) => (
-                                    <tr key={res.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="shrink-0 flex items-center justify-center p-1.5 rounded-md bg-gray-100 text-gray-500 mr-3">
-                                                    {res.type === 'file' ? <FileText className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
-                                                </div>
-                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-indigo-600 hover:text-indigo-900 truncate max-w-xs">
-                                                    {res.title || res.url}
-                                                </a>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 uppercase">
-                                                {res.type}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            Task #{res.task_id}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {new Date(res.created_at).toLocaleDateString()}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        </form>
                     </div>
                 </div>
             )}

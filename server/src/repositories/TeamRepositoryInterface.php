@@ -11,4 +11,5 @@ interface TeamRepositoryInterface
     public function findById(int $id): ?Team;
     public function addMember(int $teamId, int $userId): bool;
     public function removeMember(int $teamId, int $userId): bool;
+    public function delete(int $id): bool;
 }

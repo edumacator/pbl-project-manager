@@ -1,25 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { TeamSidebar } from '../../components/board/TeamSidebar';
 import { TeamKanban } from '../../components/board/TeamKanban';
 import TimelineView from '../../components/TimelineView'; // Reusing existing timeline
 import { TaskDetailsModal } from '../../components/TaskDetailsModal';
+import { TeamResources } from '../../components/TeamResources';
 import { api } from '../../api/client';
 import { Task } from '../../types';
-import { ArrowLeft, Layout as LayoutIcon, Calendar, Book } from 'lucide-react';
+import { ArrowLeft, Layout as LayoutIcon, Calendar, Book, Home } from 'lucide-react';
+import { CreateTaskModal } from '../../components/CreateTaskModal';
+import { CritiqueModal } from '../../components/CritiqueModal';
+import { ProjectHomeView } from '../../components/ProjectHomeView';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 export const StudentProjectBoard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [data, setData] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'board' | 'timeline' | 'resources'>('board');
+    const [activeTab, setActiveTab] = useState<'home' | 'board' | 'timeline' | 'resources'>('board');
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [timelineRefresh, setTimelineRefresh] = useState(0);
+
+    const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+    const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+    const [isCritiqueModalOpen, setIsCritiqueModalOpen] = useState(false);
+    const [critiqueTask, setCritiqueTask] = useState<Task | null>(null);
+
+    const { addToast } = useToast();
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const taskIdParam = searchParams.get('task');
 
     useEffect(() => {
         loadTeamContext();
     }, [id]);
+
+    useEffect(() => {
+        if (data && taskIdParam) {
+            const taskIdDecoded = Number(taskIdParam);
+            const task = data.tasks?.find((t: Task) => t.id === taskIdDecoded);
+            if (task) {
+                setSelectedTask(task);
+            }
+        }
+    }, [data, taskIdParam]);
 
     const loadTeamContext = async () => {
         try {
@@ -44,12 +71,92 @@ export const StudentProjectBoard: React.FC = () => {
         }
     };
 
+    const handleTaskMove = async (taskId: number, newStatus: string) => {
+        // Find existing task to check if status changed to avoid redundant API calls
+        const task = data.tasks?.find((t: Task) => t.id === taskId);
+        if (!task || task.status === newStatus) return;
+
+        // Boundary / Gatekeeper Logic
+        if (newStatus === 'done' && task.is_completable === false) {
+            setCritiqueTask(task);
+            setIsCritiqueModalOpen(true);
+            return;
+        }
+
+        // Optimistic update
+        setData((prev: any) => ({
+            ...prev,
+            tasks: prev.tasks.map((t: Task) => t.id === taskId ? { ...t, status: newStatus as any } : t)
+        }));
+
+        try {
+            await api.updateTask(taskId, { status: newStatus });
+            setTimelineRefresh(prev => prev + 1);
+        } catch (err) {
+            console.error("Failed to move task", err);
+            // Revert on failure
+            loadTeamContext();
+        }
+    };
+
+    const handleCritiqueSubmit = async (warm: string, cool: string, requiresRevision: boolean) => {
+        if (!critiqueTask) return;
+        try {
+            await api.submitFeedback(critiqueTask.id, {
+                warm_feedback: warm,
+                cool_feedback: cool,
+                requires_revision: requiresRevision
+            });
+
+            if (!requiresRevision) {
+                await api.updateTask(critiqueTask.id, { status: 'done' });
+                addToast("Feedback submitted. Task completed!", 'success');
+            } else {
+                await api.updateTask(critiqueTask.id, { status: 'doing' });
+                addToast("Feedback submitted. Revision requested.", 'success');
+            }
+
+            loadTeamContext();
+            setTimelineRefresh(prev => prev + 1);
+            setIsCritiqueModalOpen(false);
+        } catch (e) {
+            console.error("Critique submission failed", e);
+            addToast("Failed to submit critique.", 'error');
+        }
+    };
+
     if (loading) return <div>Loading...</div>;
     if (error) return <div className="text-red-600 p-8">{error}</div>;
     if (!data) return null;
 
     return (
         <div className="h-[calc(100vh-64px)] flex flex-col">
+            {isCreateTaskOpen && data.project && data.team && (
+                <CreateTaskModal
+                    project={data.project}
+                    existingTasks={data.tasks}
+                    isOpen={isCreateTaskOpen}
+                    onClose={() => { setIsCreateTaskOpen(false); setTaskToEdit(null); }}
+                    onTaskCreated={() => {
+                        loadTeamContext();
+                        setTimelineRefresh(prev => prev + 1);
+                    }}
+                    defaultTeamId={data.team.id}
+                    availableMembers={data.team.members}
+                    teams={[data.team]}
+                    taskToEdit={taskToEdit}
+                />
+            )}
+
+            {critiqueTask && (
+                <CritiqueModal
+                    isOpen={isCritiqueModalOpen}
+                    onClose={() => setIsCritiqueModalOpen(false)}
+                    onSubmit={handleCritiqueSubmit}
+                    taskTitle={critiqueTask.title}
+                />
+            )}
+
             {/* Header */}
             <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
                 <div className="flex items-center">
@@ -63,6 +170,12 @@ export const StudentProjectBoard: React.FC = () => {
                 </div>
 
                 <div className="flex bg-gray-100 p-1 rounded-lg">
+                    <button
+                        onClick={() => setActiveTab('home')}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'home' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <div className="flex items-center"><Home className="w-4 h-4 mr-2" /> Home</div>
+                    </button>
                     <button
                         onClick={() => setActiveTab('board')}
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'board' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -87,12 +200,23 @@ export const StudentProjectBoard: React.FC = () => {
             {/* Content */}
             <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 overflow-hidden bg-gray-50 relative">
+                    {activeTab === 'home' && data.project && (
+                        <ProjectHomeView
+                            project={data.project}
+                            currentUser={user}
+                            teams={[data.team]}
+                            tasks={data.tasks}
+                            onTeamSelect={() => setActiveTab('board')}
+                            onProjectUpdate={() => { }}
+                        />
+                    )}
                     {activeTab === 'board' && (
                         <TeamKanban
                             tasks={data.tasks}
-                            onTaskMove={() => { }} // Implement later
+                            onTaskMove={handleTaskMove}
                             onTaskClaim={handleTaskClaim}
                             onTaskClick={(task) => setSelectedTask(task)}
+                            onTaskAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
                         />
                     )}
                     {activeTab === 'timeline' && (
@@ -100,6 +224,7 @@ export const StudentProjectBoard: React.FC = () => {
                             <TimelineView
                                 teamId={data.team.id}
                                 onTaskClick={(task) => setSelectedTask(task)}
+                                onAddTask={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
                                 refreshTrigger={timelineRefresh}
                             />
                         </div>
@@ -115,10 +240,21 @@ export const StudentProjectBoard: React.FC = () => {
 
             <TaskDetailsModal
                 isOpen={!!selectedTask}
-                onClose={() => setSelectedTask(null)}
+                onClose={() => {
+                    setSelectedTask(null);
+                    if (taskIdParam) {
+                        searchParams.delete('task');
+                        setSearchParams(searchParams);
+                    }
+                }}
                 task={selectedTask}
                 project={data.project}
                 onTaskClaim={handleTaskClaim}
+                onEditTask={(t) => {
+                    setTaskToEdit(t);
+                    setIsCreateTaskOpen(true);
+                    setSelectedTask(null);
+                }}
             />
         </div>
     );

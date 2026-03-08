@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Task, Project, TaskReflection, ProjectResource } from '../types';
-import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil } from 'lucide-react';
+import { Task, Project, TaskReflection, ProjectResource, TaskMessage } from '../types';
+import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock } from 'lucide-react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
+import StuckTaskModal from './StuckTaskModal';
 
 interface TaskDetailsModalProps {
     isOpen: boolean;
@@ -13,36 +15,46 @@ interface TaskDetailsModalProps {
     onTaskClaim?: (taskId: number) => void;
 }
 
-type TabType = 'overview' | 'reflections' | 'resources';
+type TabType = 'overview' | 'reflections' | 'resources' | 'messages';
 
 export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onClose, task, project, onEditTask, onTaskClaim }) => {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [reflections, setReflections] = useState<TaskReflection[]>([]);
     const [resources, setResources] = useState<ProjectResource[]>([]);
+    const [messages, setMessages] = useState<TaskMessage[]>([]);
     const [newReflection, setNewReflection] = useState('');
+    const [newMessage, setNewMessage] = useState('');
+    const [messageVisibility, setMessageVisibility] = useState<'team' | 'teacher'>('team');
     const [newResourceTitle, setNewResourceTitle] = useState('');
     const [newResourceUrl, setNewResourceUrl] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [uploadMode, setUploadMode] = useState(false);
     const [loading, setLoading] = useState(false);
     const { addToast } = useToast();
+    const { user } = useAuth();
+    const [isStuck, setIsStuck] = useState(task?.is_stuck || false);
+    const [showStuckModal, setShowStuckModal] = useState(false);
 
+    useEffect(() => {
+        setIsStuck(task?.is_stuck || false);
+    }, [task]);
 
-
-    const isTeacher = !window.location.pathname.includes('/student');
-    const isOwner = task?.assignee_id === 2; // Hardcoded student 2 to match prototype auth
+    const isTeacher = user?.role === 'teacher';
+    const isOwner = task?.assignee_id === user?.id;
     const canEdit = isTeacher || isOwner;
 
     const fetchData = async () => {
         if (!task) return;
         setLoading(true);
         try {
-            const [refRes, resRes] = await Promise.all([
+            const [refRes, resRes, msgRes] = await Promise.all([
                 api.get<TaskReflection[]>(`/tasks/${task.id}/reflections`).catch(() => []),
-                api.get<ProjectResource[]>(`/tasks/${task.id}/resources`).catch(() => [])
+                api.get<ProjectResource[]>(`/tasks/${task.id}/resources`).catch(() => []),
+                api.get<TaskMessage[]>(`/tasks/${task.id}/messages`).catch(() => [])
             ]);
             setReflections(refRes || []);
             setResources(resRes || []);
+            setMessages(msgRes || []);
         } catch (error) {
             console.error(error);
         } finally {
@@ -57,8 +69,32 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         }
     }, [isOpen, task?.id]);
 
+    const handleToggleStuck = async () => {
+        if (!task) return;
+        const newStuckState = !isStuck;
+        setIsStuck(newStuckState);
+        try {
+            await api.post(`/tasks/${task.id}/toggle-stuck`, { is_stuck: newStuckState });
+            addToast(newStuckState ? "Task marked as stuck." : "Task marked as unstuck.", "success");
 
+            // Trigger the stuck decision tree if marked as stuck
+            if (newStuckState) {
+                setShowStuckModal(true);
+            }
+        } catch (err) {
+            console.error("Failed to toggle stuck state", err);
+            setIsStuck(!newStuckState); // Revert
+            addToast("Failed to update task state.", "error");
+        }
+    };
 
+    const handleStuckResolved = () => {
+        setShowStuckModal(false);
+        setIsStuck(false); // Task is now unstuck!
+        fetchData();
+        // You could also invoke a parent callback to refresh kanban board if needed 
+        // using onTaskClaim or similar to push reload to parent, but we'll stick to this for now.
+    };
     const handleAddReflection = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newReflection.trim() || !task) return;
@@ -68,6 +104,22 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
             fetchData();
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !task) return;
+        setLoading(true);
+        try {
+            await api.post(`/tasks/${task.id}/messages`, { message: newMessage, visibility: messageVisibility });
+            setNewMessage('');
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to send message.", "error");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -116,8 +168,8 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
 
     if (!isOpen || !task) return null;
 
-    const StatusIcon = task.status === 'done' ? CheckCircle2 : (task.status === 'in_progress' ? Clock : AlertCircle);
-    const statusColor = task.status === 'done' ? 'text-green-500' : (task.status === 'in_progress' ? 'text-blue-500' : 'text-gray-400');
+    const StatusIcon = task.status === 'done' ? CheckCircle2 : (task.status === 'doing' ? Clock : AlertCircle);
+    const statusColor = task.status === 'done' ? 'text-green-500' : (task.status === 'doing' ? 'text-blue-500' : 'text-gray-400');
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -184,6 +236,14 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                     >
                         Resources
                     </button>
+                    {(task?.is_stuck || messages.length > 0) && (
+                        <button
+                            onClick={() => setActiveTab('messages')}
+                            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'messages' ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        >
+                            Discussion {messages.length > 0 && <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full">{messages.length}</span>}
+                        </button>
+                    )}
                 </div>
 
                 {/* Content Area */}
@@ -209,6 +269,28 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     <span className="font-medium text-gray-900">{task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length} tasks` : 'None'}</span>
                                 </div>
                             </div>
+
+                            {/* Stuck State Toggle */}
+                            {isOwner && (
+                                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between mt-6">
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <AlertTriangle className={`w-4 h-4 mr-2 ${isStuck ? 'text-amber-500' : 'text-gray-400'}`} />
+                                            Task Status Blocked?
+                                        </h3>
+                                        <p className="text-xs text-gray-500 mt-1">If you're unsure how to proceed, mark this task as stuck.</p>
+                                    </div>
+                                    <button
+                                        onClick={handleToggleStuck}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isStuck
+                                            ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-transparent'
+                                            }`}
+                                    >
+                                        {isStuck ? 'Unmark as Stuck' : 'Mark as Stuck'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -356,8 +438,93 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                             </form>
                         </div>
                     )}
+
+                    {activeTab === 'messages' && (
+                        <div className="h-full flex flex-col bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+                            {/* Messages List Area */}
+                            <div className="flex-1 overflow-y-auto p-5 space-y-4 max-h-[400px]">
+                                {messages.length === 0 ? (
+                                    <div className="text-center text-gray-500 py-10 flex flex-col items-center">
+                                        <MessageSquare className="w-10 h-10 text-gray-300 mb-2" />
+                                        <p className="text-sm font-medium">No messages yet.</p>
+                                        <p className="text-xs text-gray-400">Start the discussion below.</p>
+                                    </div>
+                                ) : (
+                                    messages.map((msg, idx) => {
+                                        const isCurrentUser = msg.user_id === user?.id;
+                                        return (
+                                            <div key={msg.id || idx} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isCurrentUser ? 'bg-indigo-600 text-white rounded-br-none shadow-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-bl-none shadow-sm'}`}>
+                                                    {msg.visibility === 'teacher' && (
+                                                        <div className={`flex items-center gap-1 text-[10px] uppercase font-bold mb-1 ${isCurrentUser ? 'text-indigo-200' : 'text-amber-600'}`}>
+                                                            <Lock className="w-3 h-3" /> Private (Teacher & Assignee)
+                                                        </div>
+                                                    )}
+                                                    {!isCurrentUser && (
+                                                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{msg.user_name}</div>
+                                                    )}
+                                                    <div className="text-sm whitespace-pre-wrap">{msg.message}</div>
+                                                    <div className={`text-[10px] mt-2 text-right ${isCurrentUser ? 'text-indigo-200' : 'text-gray-400'}`}>
+                                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            {/* Message Input Area */}
+                            <div className="p-4 bg-white border-t border-gray-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMessageVisibility('team')}
+                                        className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${messageVisibility === 'team' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                                    >
+                                        Team Pings
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMessageVisibility('teacher')}
+                                        className={`text-xs px-3 py-1.5 rounded-full font-medium flex items-center gap-1 transition-colors ${messageVisibility === 'teacher' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                                    >
+                                        <Lock className="w-3 h-3" /> Teacher Only
+                                    </button>
+                                </div>
+                                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                                    <div className="flex-1 relative">
+                                        <input
+                                            type="text"
+                                            value={newMessage}
+                                            onChange={(e) => setNewMessage(e.target.value)}
+                                            placeholder={messageVisibility === 'team' ? "Message the team..." : "Private message to teacher..."}
+                                            disabled={loading}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-full px-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 transition-colors py-2.5"
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={!newMessage.trim() || loading}
+                                        className="p-2.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                                    >
+                                        <Send className="w-4 h-4" />
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Render the action tree modal overlaid on top if active */}
+            {showStuckModal && (
+                <StuckTaskModal
+                    task={task}
+                    onClose={() => setShowStuckModal(false)}
+                    onResolved={handleStuckResolved}
+                />
+            )}
         </div>
     );
 };
