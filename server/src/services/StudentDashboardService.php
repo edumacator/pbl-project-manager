@@ -30,6 +30,7 @@ class StudentDashboardService
             LEFT JOIN teams t ON p.id = t.project_id
             LEFT JOIN team_members tm ON t.id = tm.team_id AND tm.user_id = :student_id
             WHERE ce.student_id = :student_id_val
+            AND p.deleted_at IS NULL
             GROUP BY p.id, p.title, t.name, tm.role
         ");
         $projectsStmt->execute([':student_id' => $studentId, ':student_id_val' => $studentId]);
@@ -45,6 +46,8 @@ class StudentDashboardService
             JOIN projects p ON t.project_id = p.id
             WHERE t.assignee_id = :student_id
             AND t.status != 'done'
+            AND t.deleted_at IS NULL
+            AND p.deleted_at IS NULL
             ORDER BY 
                 FIELD(t.priority, 'high', 'medium', 'low'),
                 CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, 
@@ -56,10 +59,11 @@ class StudentDashboardService
         $nextTasks = $tasksStmt->fetchAll(\PDO::FETCH_ASSOC);
 
         // Stuck Detection
-        // If status != 'done' AND updated_at < NOW() - 3 days
+        // If status != 'done' AND updated_at < NOW() - 3 days, OR if manually marked stuck
         foreach ($nextTasks as &$task) {
-            $isStuck = false;
-            if ($task['updated_at']) {
+            $isStuck = $task['is_stuck'] ? true : false;
+
+            if (!$isStuck && $task['updated_at']) {
                 $updated = new \DateTime($task['updated_at']);
                 $now = new \DateTime();
                 $interval = $now->diff($updated);
@@ -93,6 +97,7 @@ class StudentDashboardService
             LEFT JOIN tasks t ON pra.task_id = t.id
             WHERE pra.reviewer_id = :student_id
             AND pra.status = 'pending'
+            AND p.deleted_at IS NULL
         ");
         $reviewsStmt->execute([':student_id' => $studentId]);
         $pendingReviews = $reviewsStmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -106,6 +111,7 @@ class StudentDashboardService
             LEFT JOIN tasks t ON pra.task_id = t.id
             WHERE pra.reviewer_id = :student_id
             AND pra.status = 'completed'
+            AND p.deleted_at IS NULL
             ORDER BY pra.id DESC
             LIMIT 5
         ");
@@ -134,6 +140,7 @@ class StudentDashboardService
                     WHERE ce.student_id = :s2
                 ))
             )
+            AND (p.deleted_at IS NULL OR p.id IS NULL)
             AND cp.due_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 48 HOUR)
             ORDER BY cp.due_date ASC
         ");

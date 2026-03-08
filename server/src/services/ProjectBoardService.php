@@ -47,8 +47,8 @@ class ProjectBoardService
 
         // 2. Get Project Details
         $project = $this->projectRepo->findById($projectId);
-        if (!$project) {
-            throw new \Exception("Project not found.", 404);
+        if (!$project || $project->deletedAt) {
+            throw new \Exception("Project not found or has been archived.", 404);
         }
 
         // 3. Get Team Tasks

@@ -58,6 +58,7 @@ export interface Task {
     dependencies?: number[];
     start_date?: string;
     end_date?: string; // Added
+    is_stuck?: boolean; // Added
     duration_days?: number;
     sort_order?: number; // Added
     is_blocked?: boolean; // Virtual property
@@ -112,9 +113,22 @@ export interface ProjectResource {
     project_id: number;
     team_id?: number;
     task_id?: number;
+    user_id?: number;
     title: string;
     url: string;
     type: 'link' | 'file';
     description?: string;
     created_at?: string;
 }
+
+export interface TaskMessage {
+    id: number;
+    task_id: number;
+    user_id: number;
+    message: string;
+    visibility?: 'team' | 'teacher';
+    is_system: boolean;
+    created_at: string;
+    user_name?: string;
+}
+

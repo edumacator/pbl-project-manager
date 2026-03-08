@@ -46,9 +46,9 @@ class TaskService
     {
         return $this->reflectionRepo->findByTaskId($taskId);
     }
-    public function addResource(int $projectId, ?int $taskId, string $title, string $url, string $type = 'link', ?int $teamId = null, ?string $description = null): \App\Domain\ProjectResource
+    public function addResource(int $projectId, ?int $taskId, string $title, string $url, string $type = 'link', ?int $teamId = null, ?string $description = null, ?int $userId = null): \App\Domain\ProjectResource
     {
-        $resource = new \App\Domain\ProjectResource($projectId, $title, $url, $type, $taskId, $teamId, null, null, $description);
+        $resource = new \App\Domain\ProjectResource($projectId, $title, $url, $type, $taskId, $teamId, null, null, $description, $userId);
         $id = $this->resourceRepo->create($resource);
         $resource->id = $id;
         return $resource;
@@ -162,16 +162,18 @@ class TaskService
             'todo',
             isset($data['assignee_id']) ? (int) $data['assignee_id'] : null,
             isset($data['team_id']) ? (int) $data['team_id'] : null,
-            null,
+            null, // id
             $dueDate,
             $dependencies,
             $startDate,
             $duration,
-            $data['priority'] ?? 'medium',
-            null,
-            null,
-            null,
-            null
+            false, // isStuck
+            $data['priority'] ?? 'medium', // priority
+            null, // updatedAt
+            null, // assigneeName
+            null, // createdAt
+            null, // deletedAt
+            0 // sortOrder
         );
 
         $id = $this->taskRepo->create($task);
@@ -204,6 +206,8 @@ class TaskService
             $task->teamId = $data['team_id'];
         if (array_key_exists('due_date', $data))
             $task->dueDate = $data['due_date'];
+        if (array_key_exists('is_stuck', $data))
+            $task->isStuck = (bool) $data['is_stuck'];
         if (isset($data['priority']))
             $task->priority = $data['priority'];
         if (isset($data['start_date']))

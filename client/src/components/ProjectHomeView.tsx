@@ -84,7 +84,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
         setLoadingResources(true);
         try {
             const data = await api.get<ProjectResource[]>(`/projects/${project.id}/resources`);
-            setResources((data || []).filter(r => !r.team_id));
+            setResources(data || []);
         } catch (e) {
             console.error(e);
         } finally {
@@ -143,6 +143,17 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
         } catch (e) {
             addToast('Failed to delete resource', 'error');
         }
+    };
+
+    const getResourceLabel = (res: ProjectResource) => {
+        if (res.title) return res.title;
+        if (res.type === 'file') {
+            const urlParts = res.url.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const match = fileName.match(/res_[^_]+_(.+)/);
+            return match ? match[1] : fileName;
+        }
+        return res.url;
     };
 
     const handleSaveResource = async (e: React.FormEvent) => {
@@ -438,38 +449,106 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
 
                     <div className="p-4 overflow-y-auto flex-1">
                         {loadingResources ? <p className="text-gray-500 text-center py-4 text-sm">Loading...</p> :
-                            resources.length === 0 ? (
-                                <p className="text-center py-6 text-sm text-gray-500 bg-gray-50 rounded border border-dashed">No shared resources attached.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {resources.map(res => (
-                                        <div key={res.id} className="flex flex-col p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group relative">
-                                            <div className="flex justify-between items-start gap-2">
-                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 min-w-0 flex-1">
-                                                    <div className="shrink-0 mt-0.5">
-                                                        {res.type === 'file' ? <FileText className="w-4 h-4 text-emerald-500 group-hover:text-emerald-600" /> : <Link2 className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <h4 className="font-medium text-sm text-gray-900 group-hover:text-indigo-700 truncate">{res.title}</h4>
-                                                        {res.description && (
-                                                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{res.description}</p>
-                                                        )}
-                                                    </div>
-                                                </a>
-                                                {isTeacher && (
-                                                    <button
-                                                        onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }}
-                                                        className="text-gray-400 hover:text-indigo-600 bg-white p-1 rounded border border-gray-100 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        title="Edit Resource"
-                                                    >
-                                                        <Edit2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                )}
+                            (() => {
+                                const classResources = resources.filter(r => !r.team_id);
+                                const teamResources = resources.filter(r => r.team_id && teams.some(t => t.id === r.team_id));
+
+                                if (classResources.length === 0 && teamResources.length === 0) {
+                                    return <p className="text-center py-6 text-sm text-gray-500 bg-gray-50 rounded border border-dashed">No shared resources attached.</p>;
+                                }
+
+                                return (
+                                    <div className="space-y-6">
+                                        {/* Class Library Resources */}
+                                        {classResources.length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Class Library</h4>
+                                                <div className="space-y-2">
+                                                    {classResources.map(res => (
+                                                        <div key={res.id} className="flex flex-col p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group relative">
+                                                            <div className="flex justify-between items-start gap-2">
+                                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 min-w-0 flex-1">
+                                                                    <div className="shrink-0 mt-0.5">
+                                                                        {res.type === 'file' ? <FileText className="w-4 h-4 text-emerald-500 group-hover:text-emerald-600" /> : <Link2 className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />}
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <h4 className="font-medium text-sm text-gray-900 group-hover:text-indigo-700 truncate">{getResourceLabel(res)}</h4>
+                                                                        {res.description && (
+                                                                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{res.description}</p>
+                                                                        )}
+                                                                    </div>
+                                                                </a>
+                                                                {(isTeacher || res.user_id === currentUser?.id) && (
+                                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }}
+                                                                            className="text-gray-400 hover:text-indigo-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                            title="Edit Resource"
+                                                                        >
+                                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }}
+                                                                            className="text-gray-400 hover:text-red-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                            title="Delete Resource"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )
+                                        )}
+
+                                        {/* Team Resources */}
+                                        {teamResources.length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Team Resources</h4>
+                                                <div className="space-y-2">
+                                                    {teamResources.map(res => (
+                                                        <div key={res.id} className="flex flex-col p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group relative">
+                                                            <div className="flex justify-between items-start gap-2">
+                                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 min-w-0 flex-1">
+                                                                    <div className="shrink-0 mt-0.5">
+                                                                        {res.type === 'file' ? <FileText className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600" /> : <Link2 className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600" />}
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <h4 className="font-medium text-sm text-gray-900 group-hover:text-indigo-700 truncate">{getResourceLabel(res)}</h4>
+                                                                        {res.description && (
+                                                                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{res.description}</p>
+                                                                        )}
+                                                                    </div>
+                                                                </a>
+                                                                {(isTeacher || res.user_id === currentUser?.id) && (
+                                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }}
+                                                                            className="text-gray-400 hover:text-indigo-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                            title="Edit Resource"
+                                                                        >
+                                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }}
+                                                                            className="text-gray-400 hover:text-red-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                            title="Delete Resource"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()
                         }
                     </div>
                 </div>

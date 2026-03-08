@@ -97,6 +97,7 @@ try {
 
     $taskReflectionRepo = new \App\Repositories\MySQL\TaskReflectionRepository();
     $resourceRepo = new \App\Repositories\MySQL\ProjectResourceRepository();
+    $taskMessageRepo = new \App\Repositories\MySQL\TaskMessageRepository();
     $qnaRepo = new ProjectQnaRepository(\App\Repositories\MySQL\Database::getConnection());
 
     $reviewService = new ReviewService($reviewRepo, new FeedbackRepository(\App\Repositories\MySQL\Database::getConnection()), $projectRepo, $taskRepo, $auditRepo);
@@ -385,7 +386,7 @@ if (preg_match('#^/api/v1/projects/(\d+)/teams$#', $uri, $matches)) {
             // Generate default tasks if any
             $project = $projectService->getProjectById($projectId);
             if ($project && !empty($project->defaultTasks)) {
-                $teacherId = $project->teacherId ?: clone $classId; // fallback if needed, but we don't strictly require user id for task creation if mock user 1
+                $teacherId = $project->teacherId ?: $classId; // fallback if needed, but we don't strictly require user id for task creation if mock user 1
                 $userId = 1; // Generic system/teacher user for creation
 
                 foreach ($project->defaultTasks as $dt) {
@@ -427,6 +428,23 @@ if (preg_match('#^/api/v1/projects/(\d+)/teams$#', $uri, $matches)) {
         }
         exit;
     }
+}
+
+if (preg_match('#^/api/v1/teams/(\d+)$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    $teamId = (int) $matches[1];
+    try {
+        $success = $teamService->deleteTeam($teamId);
+        if ($success) {
+            echo json_encode(['ok' => true, 'data' => ['deleted' => true]]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Team not found']]);
+        }
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
 }
 
 // Team Members
@@ -583,6 +601,135 @@ if (preg_match('#^/api/v1/tasks/(\d+)/restore$#', $uri, $matches) && $_SERVER['R
     exit;
 }
 
+// Stuck Tasks Logging & Toggling
+if (preg_match('#^/api/v1/tasks/(\d+)/stuck-log$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $taskId = (int) $matches[1];
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    $reason = $input['reason'] ?? '';
+    $actionTaken = $input['action_taken'] ?? '';
+    $nextActionText = $input['next_action_text'] ?? '';
+
+    try {
+        $stuckService = new \App\Services\StuckTaskService();
+        $logId = $stuckService->logStuckAction($taskId, $currentUser->id, $reason, $actionTaken, $nextActionText);
+
+        // Also update task status to "doing" and unstuck as per Action Tree final step
+        $taskService->updateTask($taskId, ['status' => 'doing', 'is_stuck' => false], $currentUser->id);
+
+        echo json_encode(['ok' => true, 'data' => ['log_id' => $logId]]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+if (preg_match('#^/api/v1/tasks/(\d+)/toggle-stuck$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $taskId = (int) $matches[1];
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    $isStuck = $input['is_stuck'] ?? true;
+
+    try {
+        $taskService->updateTask($taskId, ['is_stuck' => $isStuck], $currentUser->id);
+        echo json_encode(['ok' => true, 'data' => ['is_stuck' => $isStuck]]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+// Task Messages
+if (preg_match('#^/api/v1/tasks/(\d+)/messages$#', $uri, $matches)) {
+    $taskId = (int) $matches[1];
+
+    // Check auth
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        try {
+            $task = $taskRepo->findById($taskId);
+            if (!$task) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Task not found']]);
+                exit;
+            }
+
+            $allMessages = $taskMessageRepo->findByTaskId($taskId);
+
+            // Filter visibility
+            $filteredMessages = [];
+            foreach ($allMessages as $msg) {
+                if ($currentUser->role === 'teacher') {
+                    $filteredMessages[] = $msg;
+                } else {
+                    // Student logic
+                    if ($msg->visibility === 'team') {
+                        $filteredMessages[] = $msg;
+                    } else if ($msg->visibility === 'teacher') {
+                        // Only the assignee can see teacher pings
+                        if ($task->assigneeId === $currentUser->id || $msg->userId === $currentUser->id) {
+                            $filteredMessages[] = $msg;
+                        }
+                    }
+                }
+            }
+
+            echo json_encode(['ok' => true, 'data' => array_values($filteredMessages)]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (empty($input['message'])) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'INVALID_INPUT', 'message' => 'Message cannot be empty']]);
+            exit;
+        }
+
+        $visibility = $input['visibility'] ?? 'team';
+        if (!in_array($visibility, ['team', 'teacher'])) {
+            $visibility = 'team';
+        }
+
+        try {
+            $msg = new \App\Domain\TaskMessage($taskId, $currentUser->id, $input['message'], $visibility, false);
+            $msgId = $taskMessageRepo->create($msg);
+            $msg->id = $msgId;
+            $msg->userName = $currentUser->name;
+            $msg->createdAt = date('Y-m-d H:i:s');
+
+            echo json_encode(['ok' => true, 'data' => $msg]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+}
+
 // Task Reflections
 if (preg_match('#^/api/v1/tasks/(\d+)/reflections$#', $uri, $matches)) {
     $taskId = (int) $matches[1];
@@ -697,7 +844,7 @@ if (preg_match('#^/api/v1/projects/(\d+)/resources$#', $uri, $matches)) {
         $description = $input['description'] ?? null;
 
         try {
-            $resource = $taskService->addResource($projectId, $taskId, $title, $url, $type, $teamId, $description);
+            $resource = $taskService->addResource($projectId, $taskId, $title, $url, $type, $teamId, $description, $currentUser ? $currentUser->id : null);
             echo json_encode(['ok' => true, 'data' => ['resource' => $resource]]);
         } catch (\Exception $e) {
             http_response_code(500);
@@ -745,14 +892,14 @@ if (preg_match('#^/api/v1/projects/(\d+)/resources/upload$#', $uri, $matches) &&
         };
 
         $taskId = isset($_POST['task_id']) ? $cleanId($_POST['task_id']) : null;
-        $title = $_POST['title'] ?? $file['name'];
+        $title = !empty(trim($_POST['title'] ?? '')) ? trim($_POST['title']) : $file['name'];
         $url = '/uploads/resources/' . $filename;
         $type = 'file';
         $teamId = isset($_POST['team_id']) ? $cleanId($_POST['team_id']) : null;
         $description = $_POST['description'] ?? null;
 
         try {
-            $resource = $taskService->addResource($projectId, $taskId, $title, $url, $type, $teamId, $description);
+            $resource = $taskService->addResource($projectId, $taskId, $title, $url, $type, $teamId, $description, $currentUser ? $currentUser->id : null);
             echo json_encode(['ok' => true, 'data' => ['resource' => $resource]]);
         } catch (\Exception $e) {
             http_response_code(500);
@@ -788,6 +935,19 @@ if (preg_match('#^/api/v1/resources/(\d+)$#', $uri, $matches)) {
             exit;
         }
 
+        $resource = $resourceRepo->findById($resourceId);
+        if (!$resource) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Resource not found or already deleted']]);
+            exit;
+        }
+
+        if ($currentUser->role !== 'teacher' && $resource->userId !== $currentUser->id) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Unauthorized to delete this resource']]);
+            exit;
+        }
+
         try {
             $success = $taskService->deleteResource($resourceId);
             if ($success) {
@@ -811,10 +971,23 @@ if (preg_match('#^/api/v1/resources/(\d+)$#', $uri, $matches)) {
             exit;
         }
 
+        $resource = $resourceRepo->findById($resourceId);
+        if (!$resource) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Resource not found']]);
+            exit;
+        }
+
+        if ($currentUser->role !== 'teacher' && $resource->userId !== $currentUser->id) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Unauthorized to update this resource']]);
+            exit;
+        }
+
         try {
-            $resource = $taskService->updateResource($resourceId, $input);
-            if ($resource) {
-                echo json_encode(['ok' => true, 'data' => ['resource' => $resource]]);
+            $updatedResource = $taskService->updateResource($resourceId, $input);
+            if ($updatedResource) {
+                echo json_encode(['ok' => true, 'data' => ['resource' => $updatedResource]]);
             } else {
                 http_response_code(404);
                 echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Resource not found']]);

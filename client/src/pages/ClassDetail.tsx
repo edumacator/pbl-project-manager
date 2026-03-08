@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { Class, User, Project, Team } from '../types';
-import { Users, Plus, ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Pencil, ExternalLink, Key } from 'lucide-react';
+import { Users, Plus, ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Pencil, ExternalLink, Key, Trash2 } from 'lucide-react';
 import { AssignProjectModal } from '../components/AssignProjectModal';
 import { TeamMembersModal } from '../components/TeamMembersModal';
 import { useToast } from '../contexts/ToastContext';
@@ -87,10 +87,31 @@ const ClassDetail: React.FC = () => {
         try {
             await api.post(`/projects/${projectId}/teams`, { name, class_id: Number(id) });
             fetchTeams(projectId);
-            addToast('Team created successfully', 'success');
+            addToast('Group created successfully', 'success');
         } catch (e) {
             console.error(e);
-            addToast("Failed to create team", 'error');
+            addToast("Failed to create group", 'error');
+        }
+    };
+
+    const handleDeleteTeam = async (projectId: number, teamId: number) => {
+        if (!window.confirm('Are you sure you want to delete this group? All associated tasks will be removed. This cannot be undone.')) return;
+        try {
+            await api.delete(`/teams/${teamId}`);
+            setData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    projects: prev.projects.map(p => p.id === projectId ? {
+                        ...p,
+                        teams: p.teams?.filter(t => t.id !== teamId) || []
+                    } : p)
+                };
+            });
+            addToast('Group deleted', 'success');
+        } catch (e) {
+            console.error('Failed to delete group:', e);
+            addToast('Failed to delete group', 'error');
         }
     };
 
@@ -271,10 +292,17 @@ const ClassDetail: React.FC = () => {
                                                                 </Link>
                                                                 <button
                                                                     onClick={() => setEditingTeam(team)}
-                                                                    className="text-gray-400 hover:text-indigo-600"
+                                                                    className="text-gray-400 hover:text-indigo-600 p-1"
                                                                     title="Edit Group Members"
                                                                 >
                                                                     <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteTeam(project.id, team.id)}
+                                                                    className="text-gray-400 hover:text-red-600 p-1"
+                                                                    title="Delete Group"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
                                                                 </button>
                                                             </div>
                                                         </div>

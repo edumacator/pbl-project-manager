@@ -116,4 +116,10 @@ class TeamRepository implements TeamRepositoryInterface
         $stmt = $this->pdo->prepare("DELETE FROM team_members WHERE team_id = :team_id AND user_id = :user_id");
         return $stmt->execute([':team_id' => $teamId, ':user_id' => $userId]);
     }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM teams WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
 }

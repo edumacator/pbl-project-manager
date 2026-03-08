@@ -18,8 +18,8 @@ class TaskRepository implements TaskRepositoryInterface
     public function create(Task $task): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, due_date, dependencies, start_date, duration_days, sort_order)
-            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :due_date, :dependencies, :start_date, :duration_days, :sort_order)
+            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, due_date, dependencies, start_date, duration_days, is_stuck, sort_order)
+            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :due_date, :dependencies, :start_date, :duration_days, :is_stuck, :sort_order)
         ");
 
         $stmt->execute([
@@ -33,6 +33,7 @@ class TaskRepository implements TaskRepositoryInterface
             'dependencies' => $task->dependencies ? json_encode($task->dependencies) : null,
             'start_date' => $task->startDate ?? null,
             'duration_days' => $task->durationDays ?? 1,
+            'is_stuck' => $task->isStuck ? 1 : 0,
             'sort_order' => $task->sortOrder
         ]);
 
@@ -80,7 +81,7 @@ class TaskRepository implements TaskRepositoryInterface
     {
         $stmt = $this->pdo->prepare("
             UPDATE tasks 
-            SET title = :title, description = :description, status = :status, assignee_id = :assignee_id, team_id = :team_id, due_date = :due_date, dependencies = :dependencies, start_date = :start_date, duration_days = :duration_days, priority = :priority, deleted_at = :deleted_at, sort_order = :sort_order
+            SET title = :title, description = :description, status = :status, assignee_id = :assignee_id, team_id = :team_id, due_date = :due_date, dependencies = :dependencies, start_date = :start_date, duration_days = :duration_days, is_stuck = :is_stuck, priority = :priority, deleted_at = :deleted_at, sort_order = :sort_order
             WHERE id = :id
         ");
 
@@ -94,6 +95,7 @@ class TaskRepository implements TaskRepositoryInterface
             ':dependencies' => $task->dependencies,
             ':start_date' => $task->startDate ?? null,
             ':duration_days' => $task->durationDays ?? 1,
+            ':is_stuck' => $task->isStuck ? 1 : 0,
             ':priority' => $task->priority,
             ':deleted_at' => $task->deletedAt ?? null,
             ':sort_order' => $task->sortOrder,
@@ -115,6 +117,7 @@ class TaskRepository implements TaskRepositoryInterface
             $row['dependencies'] ? json_decode($row['dependencies'], true) : [],
             $row['start_date'] ?? null,
             $row['duration_days'] ? (int) $row['duration_days'] : 1,
+            (bool) ($row['is_stuck'] ?? 0),
             $row['priority'] ?? 'medium',
             $row['updated_at'] ?? null,
             $row['assignee_name'] ?? null,

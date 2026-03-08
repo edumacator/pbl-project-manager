@@ -17,14 +17,15 @@ class ProjectResourceRepository
     public function create(ProjectResource $resource): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO project_resources (project_id, team_id, task_id, title, url, type, description)
-            VALUES (:project_id, :team_id, :task_id, :title, :url, :type, :description)
+            INSERT INTO project_resources (project_id, team_id, task_id, user_id, title, url, type, description)
+            VALUES (:project_id, :team_id, :task_id, :user_id, :title, :url, :type, :description)
         ");
 
         $stmt->execute([
             ':project_id' => $resource->projectId,
             ':team_id' => $resource->teamId,
             ':task_id' => $resource->taskId,
+            ':user_id' => $resource->userId,
             ':title' => $resource->title,
             ':url' => $resource->url,
             ':type' => $resource->type,
@@ -120,7 +121,8 @@ class ProjectResourceRepository
             $row['team_id'] ? (int) $row['team_id'] : null,
             (int) $row['id'],
             $row['created_at'],
-            $row['description'] ?? null
+            $row['description'] ?? null,
+            $row['user_id'] ? (int) $row['user_id'] : null
         );
     }
 }

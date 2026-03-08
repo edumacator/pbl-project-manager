@@ -12,6 +12,7 @@ class ProjectResource implements \JsonSerializable
     public string $url;
     public string $type;
     public ?string $description;
+    public ?int $userId;
     public ?string $createdAt;
 
     public function __construct(
@@ -23,7 +24,8 @@ class ProjectResource implements \JsonSerializable
         ?int $teamId = null,
         ?int $id = null,
         ?string $createdAt = null,
-        ?string $description = null
+        ?string $description = null,
+        ?int $userId = null
     ) {
         $this->projectId = $projectId;
         $this->title = $title;
@@ -34,6 +36,7 @@ class ProjectResource implements \JsonSerializable
         $this->id = $id ?? 0;
         $this->createdAt = $createdAt;
         $this->description = $description;
+        $this->userId = $userId;
     }
 
     public function jsonSerialize(): array
@@ -47,6 +50,7 @@ class ProjectResource implements \JsonSerializable
             'url' => $this->url,
             'type' => $this->type,
             'description' => $this->description,
+            'user_id' => $this->userId,
             'created_at' => $this->createdAt
         ];
     }

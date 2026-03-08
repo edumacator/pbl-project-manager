@@ -454,9 +454,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ teamId, projectProp, onAddT
                             </div>
                             <div className="relative h-10 border-b border-gray-50 border-dashed" style={{ gridColumn: '2 / -1' }}>
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                    <button onClick={onAddTask} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
-                                        + Add your first task
-                                    </button>
+                                    <span className="text-xs text-gray-400"></span>
                                 </div>
                             </div>
                         </>
