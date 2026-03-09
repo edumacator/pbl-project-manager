@@ -64,11 +64,11 @@ const StudentToday: React.FC = () => {
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start">
                                                 <h3 className="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                                                    <Link to={`/projects/${task.project_id}?task=${task.id}`}>
+                                                    <Link to={`/student/projects/${task.project_id}?task=${task.id}`}>
                                                         {task.title}
                                                     </Link>
                                                 </h3>
-                                                <Link to={`/projects/${task.project_id}`} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200">
+                                                <Link to={`/student/projects/${task.project_id}`} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200">
                                                     {task.project_title}
                                                 </Link>
                                             </div>

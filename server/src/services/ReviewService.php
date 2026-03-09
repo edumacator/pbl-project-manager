@@ -36,7 +36,7 @@ class ReviewService
 
     // ... (submitReview, submitFeedback, getFeedbackForTask, isTaskCompletable, getReviewsForTask, getReviewsForStudent remain same)
 
-    public function autoAssignReviewers(int $projectId, string $context = 'team'): array
+    public function autoAssignReviewers(int $projectId, string $context = 'team', ?int $checkpointId = null): array
     {
         // 1. Get Project -> Teams -> Users
         // For now, let's assume context='team' means assign within each team.
@@ -68,6 +68,7 @@ class ReviewService
                     $reviewer['id'],
                     $reviewee['id'],
                     null, // Task ID unknown yet, or maybe pick one?
+                    $checkpointId,
                     'pending'
                 );
 

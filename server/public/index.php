@@ -1242,8 +1242,10 @@ if (preg_match('#^/api/v1/projects/(\d+)/assignments$#', $uri, $matches)) {
 
 if (preg_match('#^/api/v1/projects/(\d+)/assignments/auto$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $projectId = (int) $matches[1];
+    $input = json_decode(file_get_contents('php://input'), true);
+    $checkpointId = isset($input['checkpoint_id']) ? (int) $input['checkpoint_id'] : null;
     try {
-        $result = $reviewService->autoAssignReviewers($projectId);
+        $result = $reviewService->autoAssignReviewers($projectId, 'team', $checkpointId);
         echo json_encode(['ok' => true, 'data' => ['assignments' => $result, 'count' => count($result)]]);
     } catch (\Exception $e) {
         http_response_code(500);
