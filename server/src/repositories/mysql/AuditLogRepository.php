@@ -40,6 +40,32 @@ class AuditLogRepository implements AuditLogRepositoryInterface
         return array_map([$this, 'mapRowToLog'], $rows);
     }
 
+    public function findByTaskId(int $taskId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT a.*, u.name as user_name 
+            FROM audit_logs a
+            JOIN users u ON a.user_id = u.id
+            WHERE JSON_UNQUOTE(JSON_EXTRACT(a.details, '$.task_id')) = :task_id 
+               OR JSON_UNQUOTE(JSON_EXTRACT(a.details, '$.task_id')) = :task_id_str
+            ORDER BY a.created_at DESC
+        ");
+        $stmt->execute([
+            ':task_id' => $taskId,
+            ':task_id_str' => (string) $taskId
+        ]);
+        $rows = $stmt->fetchAll();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $log = $this->mapRowToLog($row);
+            $log->userName = $row['user_name'];
+            $result[] = $log;
+        }
+
+        return $result;
+    }
+
     private function mapRowToLog(array $row): AuditLog
     {
         return new AuditLog(

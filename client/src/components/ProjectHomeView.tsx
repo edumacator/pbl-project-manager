@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Project, ProjectResource, User } from '../types';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
-import { Plus, MessageCircle, Save, Edit2, Trash2, FileText, Link2, Maximize2, Minimize2 } from 'lucide-react';
+import { Plus, MessageCircle, Save, Edit2, Trash2, FileText, Link2, Maximize2, Minimize2, Users } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { useNavigate } from 'react-router-dom';
 import StarterKit from '@tiptap/starter-kit';
 
 interface ProjectQna {
@@ -31,9 +32,13 @@ interface ProjectHomeViewProps {
 export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, currentUser, teams, tasks, onTeamSelect, onProjectUpdate }) => {
     const { addToast } = useToast();
 
-    // Resources state
     const [resources, setResources] = useState<ProjectResource[]>([]);
     const [loadingResources, setLoadingResources] = useState(false);
+    const navigate = useNavigate();
+
+    // Students state
+    const [classStudents, setClassStudents] = useState<Record<number, User[]>>({});
+    const [loadingStudents, setLoadingStudents] = useState(false);
     const [newResourceTitle, setNewResourceTitle] = useState('');
     const [newResourceUrl, setNewResourceUrl] = useState('');
     const [newResourceType, setNewResourceType] = useState<'link' | 'file'>('link');
@@ -70,6 +75,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
     useEffect(() => {
         fetchResources();
         fetchQna();
+        fetchStudents();
     }, [project.id]);
 
     useEffect(() => {
@@ -79,6 +85,24 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
             editor.commands.setContent(project.description);
         }
     }, [project.description, editor]);
+
+    const fetchStudents = async () => {
+        if (!project.classes || project.classes.length === 0) return;
+        setLoadingStudents(true);
+        const newStudents: Record<number, User[]> = {};
+        for (const cls of project.classes) {
+            try {
+                const data = await api.get<any>(`/classes/${cls.id}`);
+                if (data && Array.isArray(data.students)) {
+                    newStudents[cls.id] = data.students;
+                }
+            } catch (e) {
+                console.error('Failed to fetch students for class', cls.id);
+            }
+        }
+        setClassStudents(newStudents);
+        setLoadingStudents(false);
+    };
 
     const fetchResources = async () => {
         setLoadingResources(true);
@@ -411,235 +435,313 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                         )}
                     </div>
                 )}
-            </div>
 
-            {/* RIGHT COLUMN: Resources & QnA */}
-            <div className="space-y-6">
-
-                {/* Shared Resources Card */}
-                <div className={`bg-white rounded-xl border border-gray-200 flex flex-col transition-all ${expandedPanel === 'resources' ? 'fixed inset-4 md:inset-10 z-50 shadow-2xl' : 'shadow-sm max-h-[400px]'}`}>
-                    <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-900">Shared Resources</h3>
-                        <div className="flex items-center gap-3">
-                            {isTeacher && (
+                {/* Resources & QnA Grid Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    <div className={`bg-white rounded-xl border border-gray-200 flex flex-col transition-all ${expandedPanel === 'resources' ? 'fixed inset-4 md:inset-10 z-50 shadow-2xl' : 'shadow-sm max-h-[500px]'}`}>
+                        <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900">Shared Resources</h3>
+                            <div className="flex items-center gap-3">
+                                {isTeacher && (
+                                    <button
+                                        onClick={() => {
+                                            setEditingResource(null);
+                                            setNewResourceTitle('');
+                                            setNewResourceUrl('');
+                                            setNewResourceDescription('');
+                                            setNewResourceType('link');
+                                            setNewResourceFile(null);
+                                            setShowResourceModal(true);
+                                        }}
+                                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" /> Add
+                                    </button>
+                                )}
                                 <button
-                                    onClick={() => {
-                                        setEditingResource(null);
-                                        setNewResourceTitle('');
-                                        setNewResourceUrl('');
-                                        setNewResourceDescription('');
-                                        setNewResourceType('link');
-                                        setNewResourceFile(null);
-                                        setShowResourceModal(true);
-                                    }}
-                                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                                    onClick={() => setExpandedPanel(expandedPanel === 'resources' ? null : 'resources')}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    title={expandedPanel === 'resources' ? "Minimize" : "Expand Fullscreen"}
                                 >
-                                    <Plus className="w-3.5 h-3.5" /> Add
+                                    {expandedPanel === 'resources' ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                                 </button>
-                            )}
-                            <button
-                                onClick={() => setExpandedPanel(expandedPanel === 'resources' ? null : 'resources')}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
-                                title={expandedPanel === 'resources' ? "Minimize" : "Expand Fullscreen"}
-                            >
-                                {expandedPanel === 'resources' ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                            </button>
+                            </div>
+                        </div>
+
+                        <div className="p-4 overflow-y-auto flex-1">
+                            {loadingResources ? <p className="text-gray-500 text-center py-4 text-sm">Loading...</p> :
+                                (() => {
+                                    const classResources = resources.filter(r => !r.team_id);
+                                    const teamResources = resources.filter(r => r.team_id && teams.some(t => t.id === r.team_id));
+
+                                    if (classResources.length === 0 && teamResources.length === 0) {
+                                        return <p className="text-center py-6 text-sm text-gray-500 bg-gray-50 rounded border border-dashed">No shared resources attached.</p>;
+                                    }
+
+                                    return (
+                                        <div className="space-y-6">
+                                            {/* Class Library Resources */}
+                                            {classResources.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Class Library</h4>
+                                                    <div className="space-y-2">
+                                                        {classResources.map(res => (
+                                                            <div key={res.id} className="flex flex-col p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group relative">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 min-w-0 flex-1">
+                                                                        <div className="shrink-0 mt-0.5">
+                                                                            {res.type === 'file' ? <FileText className="w-4 h-4 text-emerald-500 group-hover:text-emerald-600" /> : <Link2 className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />}
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <h4 className="font-medium text-sm text-gray-900 group-hover:text-indigo-700 truncate">{getResourceLabel(res)}</h4>
+                                                                            {res.description && (
+                                                                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{res.description}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    </a>
+                                                                    {(isTeacher || res.user_id === currentUser?.id) && (
+                                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button
+                                                                                onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }}
+                                                                                className="text-gray-400 hover:text-indigo-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                                title="Edit Resource"
+                                                                            >
+                                                                                <Edit2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }}
+                                                                                className="text-gray-400 hover:text-red-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                                title="Delete Resource"
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Team Resources */}
+                                            {teamResources.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Team Resources</h4>
+                                                    <div className="space-y-2">
+                                                        {teamResources.map(res => (
+                                                            <div key={res.id} className="flex flex-col p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group relative">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 min-w-0 flex-1">
+                                                                        <div className="shrink-0 mt-0.5">
+                                                                            {res.type === 'file' ? <FileText className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600" /> : <Link2 className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600" />}
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <h4 className="font-medium text-sm text-gray-900 group-hover:text-indigo-700 truncate">{getResourceLabel(res)}</h4>
+                                                                            {res.description && (
+                                                                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{res.description}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    </a>
+                                                                    {(isTeacher || res.user_id === currentUser?.id) && (
+                                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button
+                                                                                onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }}
+                                                                                className="text-gray-400 hover:text-indigo-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                                title="Edit Resource"
+                                                                            >
+                                                                                <Edit2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }}
+                                                                                className="text-gray-400 hover:text-red-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
+                                                                                title="Delete Resource"
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()
+                            }
                         </div>
                     </div>
 
-                    <div className="p-4 overflow-y-auto flex-1">
-                        {loadingResources ? <p className="text-gray-500 text-center py-4 text-sm">Loading...</p> :
-                            (() => {
-                                const classResources = resources.filter(r => !r.team_id);
-                                const teamResources = resources.filter(r => r.team_id && teams.some(t => t.id === r.team_id));
+                    {/* Q&A Forum Card */}
+                    <div className={`bg-white rounded-xl border border-gray-200 flex flex-col transition-all ${expandedPanel === 'qna' ? 'fixed inset-4 md:inset-10 z-50 shadow-2xl' : 'shadow-sm h-[500px]'}`}>
+                        <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <MessageCircle className="w-4 h-4" /> Q&A Forum
+                            </h3>
+                            <button
+                                onClick={() => setExpandedPanel(expandedPanel === 'qna' ? null : 'qna')}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                title={expandedPanel === 'qna' ? "Minimize" : "Expand Fullscreen"}
+                            >
+                                {expandedPanel === 'qna' ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                            </button>
+                        </div>
 
-                                if (classResources.length === 0 && teamResources.length === 0) {
-                                    return <p className="text-center py-6 text-sm text-gray-500 bg-gray-50 rounded border border-dashed">No shared resources attached.</p>;
-                                }
-
-                                return (
-                                    <div className="space-y-6">
-                                        {/* Class Library Resources */}
-                                        {classResources.length > 0 && (
-                                            <div>
-                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Class Library</h4>
-                                                <div className="space-y-2">
-                                                    {classResources.map(res => (
-                                                        <div key={res.id} className="flex flex-col p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group relative">
-                                                            <div className="flex justify-between items-start gap-2">
-                                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 min-w-0 flex-1">
-                                                                    <div className="shrink-0 mt-0.5">
-                                                                        {res.type === 'file' ? <FileText className="w-4 h-4 text-emerald-500 group-hover:text-emerald-600" /> : <Link2 className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />}
-                                                                    </div>
-                                                                    <div className="min-w-0">
-                                                                        <h4 className="font-medium text-sm text-gray-900 group-hover:text-indigo-700 truncate">{getResourceLabel(res)}</h4>
-                                                                        {res.description && (
-                                                                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{res.description}</p>
-                                                                        )}
-                                                                    </div>
-                                                                </a>
-                                                                {(isTeacher || res.user_id === currentUser?.id) && (
-                                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        <button
-                                                                            onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }}
-                                                                            className="text-gray-400 hover:text-indigo-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
-                                                                            title="Edit Resource"
-                                                                        >
-                                                                            <Edit2 className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }}
-                                                                            className="text-gray-400 hover:text-red-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
-                                                                            title="Delete Resource"
-                                                                        >
-                                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Team Resources */}
-                                        {teamResources.length > 0 && (
-                                            <div>
-                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Team Resources</h4>
-                                                <div className="space-y-2">
-                                                    {teamResources.map(res => (
-                                                        <div key={res.id} className="flex flex-col p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group relative">
-                                                            <div className="flex justify-between items-start gap-2">
-                                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 min-w-0 flex-1">
-                                                                    <div className="shrink-0 mt-0.5">
-                                                                        {res.type === 'file' ? <FileText className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600" /> : <Link2 className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600" />}
-                                                                    </div>
-                                                                    <div className="min-w-0">
-                                                                        <h4 className="font-medium text-sm text-gray-900 group-hover:text-indigo-700 truncate">{getResourceLabel(res)}</h4>
-                                                                        {res.description && (
-                                                                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{res.description}</p>
-                                                                        )}
-                                                                    </div>
-                                                                </a>
-                                                                {(isTeacher || res.user_id === currentUser?.id) && (
-                                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        <button
-                                                                            onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }}
-                                                                            className="text-gray-400 hover:text-indigo-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
-                                                                            title="Edit Resource"
-                                                                        >
-                                                                            <Edit2 className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }}
-                                                                            className="text-gray-400 hover:text-red-600 bg-white p-1 rounded border border-gray-100 shadow-sm"
-                                                                            title="Delete Resource"
-                                                                        >
-                                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
+                        <div className="p-4 overflow-y-auto flex-1 bg-gray-50/50">
+                            {loadingQna ? <p className="text-gray-500 text-center py-4 text-sm">Loading...</p> :
+                                questions.length === 0 ? (
+                                    <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-200">
+                                        <MessageCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                        <p className="text-sm text-gray-500">No questions asked yet.</p>
                                     </div>
-                                );
-                            })()
-                        }
-                    </div>
-                </div>
-
-                {/* Q&A Forum Card */}
-                <div className={`bg-white rounded-xl border border-gray-200 flex flex-col transition-all ${expandedPanel === 'qna' ? 'fixed inset-4 md:inset-10 z-50 shadow-2xl' : 'shadow-sm h-[500px]'}`}>
-                    <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                            <MessageCircle className="w-4 h-4" /> Q&A Forum
-                        </h3>
-                        <button
-                            onClick={() => setExpandedPanel(expandedPanel === 'qna' ? null : 'qna')}
-                            className="text-gray-400 hover:text-gray-600 transition-colors"
-                            title={expandedPanel === 'qna' ? "Minimize" : "Expand Fullscreen"}
-                        >
-                            {expandedPanel === 'qna' ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                        </button>
-                    </div>
-
-                    <div className="p-4 overflow-y-auto flex-1 bg-gray-50/50">
-                        {loadingQna ? <p className="text-gray-500 text-center py-4 text-sm">Loading...</p> :
-                            questions.length === 0 ? (
-                                <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-200">
-                                    <MessageCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                    <p className="text-sm text-gray-500">No questions asked yet.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {questions.map(q => (
-                                        <div key={q.id} className="bg-white rounded-lg border border-gray-200 shadow-sm text-sm">
-                                            <div className="p-3 border-b border-gray-100 bg-gray-50/50">
-                                                <div className="flex justify-between items-start">
-                                                    <span className="font-bold text-gray-900">{q.question}</span>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {questions.map(q => (
+                                            <div key={q.id} className="bg-white rounded-lg border border-gray-200 shadow-sm text-sm">
+                                                <div className="p-3 border-b border-gray-100 bg-gray-50/50">
+                                                    <div className="flex justify-between items-start">
+                                                        <span className="font-bold text-gray-900">{q.question}</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-400 mt-1">Asked by {isTeacher ? q.author_name : 'a Student'}</p>
                                                 </div>
-                                                <p className="text-xs text-gray-400 mt-1">Asked by {isTeacher ? q.author_name : 'a Student'}</p>
-                                            </div>
-                                            <div className="p-3">
-                                                {q.answer ? (
-                                                    <div className="text-gray-700 bg-indigo-50/50 p-2 rounded border border-indigo-100">
-                                                        <p className="whitespace-pre-wrap">{q.answer}</p>
-                                                        <p className="text-[10px] text-indigo-400 mt-2 font-medium bg-white px-1.5 py-0.5 rounded shadow-sm inline-block border border-indigo-50">Teacher Answer</p>
-                                                    </div>
-                                                ) : isTeacher ? (
-                                                    <div>
-                                                        {answeringId === q.id ? (
-                                                            <div>
-                                                                <textarea
-                                                                    value={answerText}
-                                                                    onChange={e => setAnswerText(e.target.value)}
-                                                                    className="w-full border rounded p-2 text-sm min-h-[60px] focus:ring-1 focus:ring-indigo-500 mb-2"
-                                                                    placeholder="Type answer..."
-                                                                />
-                                                                <div className="flex gap-2 justify-end">
-                                                                    <button onClick={() => setAnsweringId(null)} className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                                                                    <button onClick={() => submitAnswer(q.id)} className="px-2 py-1 text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 rounded">Submit</button>
+                                                <div className="p-3">
+                                                    {q.answer ? (
+                                                        <div className="text-gray-700 bg-indigo-50/50 p-2 rounded border border-indigo-100">
+                                                            <p className="whitespace-pre-wrap">{q.answer}</p>
+                                                            <p className="text-[10px] text-indigo-400 mt-2 font-medium bg-white px-1.5 py-0.5 rounded shadow-sm inline-block border border-indigo-50">Teacher Answer</p>
+                                                        </div>
+                                                    ) : isTeacher ? (
+                                                        <div>
+                                                            {answeringId === q.id ? (
+                                                                <div>
+                                                                    <textarea
+                                                                        value={answerText}
+                                                                        onChange={e => setAnswerText(e.target.value)}
+                                                                        className="w-full border rounded p-2 text-sm min-h-[60px] focus:ring-1 focus:ring-indigo-500 mb-2"
+                                                                        placeholder="Type answer..."
+                                                                    />
+                                                                    <div className="flex gap-2 justify-end">
+                                                                        <button onClick={() => setAnsweringId(null)} className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                                                                        <button onClick={() => submitAnswer(q.id)} className="px-2 py-1 text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 rounded">Submit</button>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        ) : (
-                                                            <button onClick={() => setAnsweringId(q.id)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded">Answer Question</button>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-xs text-gray-400 italic">Waiting for answer...</p>
-                                                )}
+                                                            ) : (
+                                                                <button onClick={() => setAnsweringId(q.id)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded">Answer Question</button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-gray-400 italic">Waiting for answer...</p>
+                                                    )}
+                                                </div>
                                             </div>
+                                        ))}
+                                    </div>
+                                )
+                            }
+                        </div>
+
+                        {currentUser && (
+                            <div className="p-4 border-t border-gray-100 rounded-b-xl bg-white">
+                                <form onSubmit={handleAskQuestion}>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Ask a question..."
+                                            value={newQuestion}
+                                            onChange={e => setNewQuestion(e.target.value)}
+                                            className="flex-1 px-3 py-1.5 border rounded-md text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            required
+                                        />
+                                        <button type="submit" disabled={!newQuestion.trim()} className="bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Ask</button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+                    </div>
+                </div> {/* End Resources & QnA Grid Row */}
+            </div> {/* END LEFT COLUMN */}
+
+            {/* RIGHT COLUMN: Student Roster */}
+            <div className="space-y-6">
+                {(isTeacher && projectClasses.length > 0) && (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col max-h-[850px]">
+                        <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center sticky top-0 z-10 rounded-t-xl">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <Users className="w-4 h-4" /> Student Roster
+                            </h3>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1 bg-white">
+                            {loadingStudents ? (
+                                <p className="text-gray-500 text-center py-4 text-sm">Loading students...</p>
+                            ) : Object.keys(classStudents).length === 0 ? (
+                                <p className="text-gray-500 text-center py-4 text-sm">No students assigned.</p>
+                            ) : (
+                                <div className="space-y-6">
+                                    {projectClasses.map(cls => (
+                                        <div key={cls.id}>
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{cls.name}</h4>
+                                            {!classStudents[cls.id] || classStudents[cls.id].length === 0 ? (
+                                                <p className="text-xs text-gray-400 italic bg-gray-50 p-2 rounded">No students in this class.</p>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {classStudents[cls.id]
+                                                        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                                                        .map(student => {
+                                                            // Calculate assigned tasks for this student
+                                                            const studentTeam = teams.find(t =>
+                                                                t.class_id === cls.id && t.members?.some((m: any) => m.id === student.id)
+                                                            );
+
+                                                            let assignedCount = 0;
+                                                            if (studentTeam) {
+                                                                assignedCount = tasks.filter(t =>
+                                                                    (t.team_id === studentTeam.id && (!t.assignee_id || t.assignee_id === student.id))
+                                                                    && t.status !== 'done'
+                                                                ).length;
+                                                            } else {
+                                                                assignedCount = tasks.filter(t => t.assignee_id === student.id && t.status !== 'done').length;
+                                                            }
+
+                                                            const displayName = (student.first_name || student.last_name) ? `${student.first_name} ${student.last_name}`.trim() : student.name;
+
+                                                            return (
+                                                                <button
+                                                                    key={student.id}
+                                                                    onClick={() => navigate(`/teacher/student-detail?project_id=${project.id}&class_id=${cls.id}&student_id=${student.id}`)}
+                                                                    className="w-full flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 transition-colors group text-left"
+                                                                    title={`View ${displayName}'s Detail Page`}
+                                                                >
+                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                        <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                                                            {displayName.charAt(0).toUpperCase()}
+                                                                        </div>
+                                                                        <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-700 truncate">{displayName}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                        {assignedCount > 0 ? (
+                                                                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full" title={`${assignedCount} active assigned tasks`}>
+                                                                                {assignedCount} Tasks
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="bg-gray-100 text-gray-400 text-[10px] px-1.5 py-0.5 rounded-full">
+                                                                                No Tasks
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
-                            )
-                        }
-                    </div>
-
-                    {currentUser && (
-                        <div className="p-4 border-t border-gray-100 bg-white">
-                            <form onSubmit={handleAskQuestion}>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Ask a question..."
-                                        value={newQuestion}
-                                        onChange={e => setNewQuestion(e.target.value)}
-                                        className="flex-1 px-3 py-1.5 border rounded-md text-sm bg-gray-50 focus:bg-white"
-                                        required
-                                    />
-                                    <button type="submit" disabled={!newQuestion.trim()} className="bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">Ask</button>
-                                </div>
-                            </form>
+                            )}
                         </div>
-                    )}
-                </div>
-
+                    </div>
+                )}
             </div>
 
             {/* Add/Edit Resource Modal */}

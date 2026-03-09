@@ -386,8 +386,8 @@ if (preg_match('#^/api/v1/projects/(\d+)/teams$#', $uri, $matches)) {
             // Generate default tasks if any
             $project = $projectService->getProjectById($projectId);
             if ($project && !empty($project->defaultTasks)) {
-                $teacherId = $project->teacherId ?: $classId; // fallback if needed, but we don't strictly require user id for task creation if mock user 1
-                $userId = 1; // Generic system/teacher user for creation
+                $teacherId = $project->teacherId ?: $classId; // fallback if needed
+                $userId = $currentUser->id;
 
                 foreach ($project->defaultTasks as $dt) {
                     $taskData = [
@@ -515,8 +515,7 @@ if (preg_match('#^/api/v1/projects/(\d+)/tasks$#', $uri, $matches)) {
     // Create Task
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $input = json_decode(file_get_contents('php://input'), true);
-        // Hardcoded user ID = 1 for now (Teacher). In real app, get from Auth token.
-        $userId = 1;
+        $userId = $currentUser->id;
 
         // Inject project_id into input for service
         $input['project_id'] = $projectId;
@@ -554,7 +553,7 @@ if (preg_match('#^/api/v1/tasks/(\d+)$#', $uri, $matches)) {
     $taskId = (int) $matches[1];
     if ($_SERVER['REQUEST_METHOD'] === 'PATCH' || $_SERVER['REQUEST_METHOD'] === 'PUT') {
         $input = json_decode(file_get_contents('php://input'), true);
-        $userId = 1; // Hardcoded auth
+        $userId = $currentUser->id;
 
         try {
             $task = $taskService->updateTask($taskId, $input, $userId);
@@ -736,7 +735,7 @@ if (preg_match('#^/api/v1/tasks/(\d+)/reflections$#', $uri, $matches)) {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $input = json_decode(file_get_contents('php://input'), true);
-        $userId = 1; // Hardcoded teacher/student ID for now
+        $userId = $currentUser->id;
         try {
             $reflection = $taskService->addReflection($taskId, $userId, $input['content'] ?? '');
             echo json_encode(['ok' => true, 'data' => ['reflection' => $reflection]]);
@@ -780,6 +779,22 @@ if (preg_match('#^/api/v1/tasks/(\d+)/resources$#', $uri, $matches)) {
         try {
             $resources = $taskService->getResourcesForTask($taskId);
             echo json_encode(['ok' => true, 'data' => $resources]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+}
+
+// Task History
+if (preg_match('#^/api/v1/tasks/(\d+)/history$#', $uri, $matches)) {
+    $taskId = (int) $matches[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        try {
+            $history = $auditRepo->findByTaskId($taskId);
+            echo json_encode(['ok' => true, 'data' => $history]);
         } catch (\Exception $e) {
             http_response_code(500);
             echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);

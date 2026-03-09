@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import TeacherDashboard from './pages/TeacherDashboard';
 import ClassDetail from './pages/ClassDetail';
 import CreateProject from './pages/CreateProject';
+import TeacherStudentDetail from './pages/TeacherStudentDetail';
 import ProjectBoard from './pages/ProjectBoard';
 import StudentDashboard from './pages/student/Dashboard';
 import PeerReviewWorkspace from './pages/student/PeerReviewWorkspace';
@@ -31,6 +32,7 @@ function App() {
                                     <Route path="teacher" element={<Navigate to="/teacher/dashboard" replace />} />
                                     <Route path="teacher/dashboard" element={<TeacherDashboard />} />
                                     <Route path="classes/:id" element={<ClassDetail />} />
+                                    <Route path="teacher/student-detail" element={<TeacherStudentDetail />} />
                                     <Route path="projects/new" element={<CreateProject />} />
                                     <Route path="projects/:id/edit" element={<CreateProject />} />
                                     <Route path="projects/:id" element={<ProjectBoard />} />
