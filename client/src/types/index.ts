@@ -64,6 +64,18 @@ export interface Task {
     is_blocked?: boolean; // Virtual property
     is_completable?: boolean; // Virtual property for gatekeeping
     deleted_at?: string; // Added
+    checklist?: TaskChecklistItem[]; // Added
+    checklist_summary?: { total: number; completed: number }; // Added
+}
+
+export interface TaskChecklistItem {
+    id: number;
+    task_id: number;
+    content: string;
+    is_completed: boolean;
+    sort_order: number;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface Milestone {
