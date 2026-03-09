@@ -10,6 +10,7 @@ import { Task } from '../../types';
 import { ArrowLeft, Layout as LayoutIcon, Calendar, Book, Home } from 'lucide-react';
 import { CreateTaskModal } from '../../components/CreateTaskModal';
 import { CritiqueModal } from '../../components/CritiqueModal';
+import { ReflectionModal } from '../../components/ReflectionModal';
 import { ProjectHomeView } from '../../components/ProjectHomeView';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -28,6 +29,11 @@ export const StudentProjectBoard: React.FC = () => {
     const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
     const [isCritiqueModalOpen, setIsCritiqueModalOpen] = useState(false);
     const [critiqueTask, setCritiqueTask] = useState<Task | null>(null);
+
+    const [isReflectionModalOpen, setIsReflectionModalOpen] = useState(false);
+    const [reflectionTask, setReflectionTask] = useState<Task | null>(null);
+    const [reflectionTransition, setReflectionTransition] = useState<'start_work' | 'finish_task'>('start_work');
+    const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
     const { addToast } = useToast();
 
@@ -76,13 +82,46 @@ export const StudentProjectBoard: React.FC = () => {
         const task = data.tasks?.find((t: Task) => t.id === taskId);
         if (!task || task.status === newStatus) return;
 
-        // Boundary / Gatekeeper Logic
-        if (newStatus === 'done' && task.is_completable === false) {
-            setCritiqueTask(task);
-            setIsCritiqueModalOpen(true);
-            return;
+        // Transition Logic: Teachers move tasks directly, students see rituals/gatekeepers
+        if (user?.role === 'student') {
+            // Reflection Logic - Only if enabled for this project
+            if (data.project?.requires_reflection) {
+                if (task.status === 'todo' && newStatus === 'doing') {
+                    setReflectionTask(task);
+                    setReflectionTransition('start_work');
+                    setPendingStatus(newStatus);
+                    setIsReflectionModalOpen(true);
+                    return;
+                }
+
+                if (task.status === 'doing' && newStatus === 'done') {
+                    // Check if it needs critique first
+                    if (task.is_completable === false) {
+                        setCritiqueTask(task);
+                        setIsCritiqueModalOpen(true);
+                        return;
+                    }
+
+                    setReflectionTask(task);
+                    setReflectionTransition('finish_task');
+                    setPendingStatus(newStatus);
+                    setIsReflectionModalOpen(true);
+                    return;
+                }
+            }
+
+            // Boundary / Gatekeeper Logic (fallback for other transitions if needed)
+            if (newStatus === 'done' && task.is_completable === false) {
+                setCritiqueTask(task);
+                setIsCritiqueModalOpen(true);
+                return;
+            }
         }
 
+        await executeTaskMove(taskId, newStatus);
+    };
+
+    const executeTaskMove = async (taskId: number, newStatus: string) => {
         // Optimistic update
         setData((prev: any) => ({
             ...prev,
@@ -97,6 +136,34 @@ export const StudentProjectBoard: React.FC = () => {
             // Revert on failure
             loadTeamContext();
         }
+    };
+
+    const handleReflectionSubmit = async (content: string) => {
+        if (!reflectionTask || !pendingStatus) return;
+
+        try {
+            await api.saveTaskReflection(reflectionTask.id, content, reflectionTransition);
+            await executeTaskMove(reflectionTask.id, pendingStatus);
+            setIsReflectionModalOpen(false);
+            setReflectionTask(null);
+            setPendingStatus(null);
+        } catch (err) {
+            console.error("Failed to save reflection", err);
+            addToast("Failed to save reflection, but task was moved.", 'error');
+            // Still move the task if reflection fails? 
+            // The requirement says "Save & Move", implying they go together.
+            // Let's at least move the task if the user tried.
+            await executeTaskMove(reflectionTask.id, pendingStatus);
+            setIsReflectionModalOpen(false);
+        }
+    };
+
+    const handleReflectionSkip = async () => {
+        if (!reflectionTask || !pendingStatus) return;
+        await executeTaskMove(reflectionTask.id, pendingStatus);
+        setIsReflectionModalOpen(false);
+        setReflectionTask(null);
+        setPendingStatus(null);
     };
 
     const handleCritiqueSubmit = async (warm: string, cool: string, requiresRevision: boolean) => {
@@ -154,6 +221,17 @@ export const StudentProjectBoard: React.FC = () => {
                     onClose={() => setIsCritiqueModalOpen(false)}
                     onSubmit={handleCritiqueSubmit}
                     taskTitle={critiqueTask.title}
+                />
+            )}
+
+            {reflectionTask && (
+                <ReflectionModal
+                    isOpen={isReflectionModalOpen}
+                    onClose={() => setIsReflectionModalOpen(false)}
+                    onSubmit={handleReflectionSubmit}
+                    onSkip={handleReflectionSkip}
+                    transitionType={reflectionTransition}
+                    taskTitle={reflectionTask.title}
                 />
             )}
 

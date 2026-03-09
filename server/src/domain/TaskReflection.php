@@ -8,6 +8,7 @@ class TaskReflection implements \JsonSerializable
     public int $taskId;
     public int $userId;
     public string $content;
+    public string $transitionType;
     public ?string $createdAt;
     public ?string $userName;
 
@@ -15,6 +16,7 @@ class TaskReflection implements \JsonSerializable
         int $taskId,
         int $userId,
         string $content,
+        string $transitionType = 'start_work',
         ?int $id = null,
         ?string $createdAt = null,
         ?string $userName = null
@@ -22,6 +24,7 @@ class TaskReflection implements \JsonSerializable
         $this->taskId = $taskId;
         $this->userId = $userId;
         $this->content = $content;
+        $this->transitionType = $transitionType;
         $this->id = $id ?? 0;
         $this->createdAt = $createdAt;
         $this->userName = $userName;
@@ -34,6 +37,7 @@ class TaskReflection implements \JsonSerializable
             'task_id' => $this->taskId,
             'user_id' => $this->userId,
             'content' => $this->content,
+            'transition_type' => $this->transitionType,
             'created_at' => $this->createdAt,
             'user_name' => $this->userName
         ];

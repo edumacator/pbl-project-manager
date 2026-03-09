@@ -104,8 +104,10 @@ export interface TaskReflection {
     id: number;
     task_id: number;
     user_id: number;
+    transition_type: 'start_work' | 'finish_task';
     content: string;
     created_at?: string;
+    user_name?: string;
 }
 
 export interface ProjectResource {

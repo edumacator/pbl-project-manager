@@ -357,8 +357,14 @@ const TeacherStudentDetail: React.FC = () => {
                                                                                         try {
                                                                                             const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
                                                                                             if (details?.old_status && details?.new_status) {
-                                                                                                const formatStatus = (s: string) => s.replace(/_/g, ' ').toUpperCase();
-                                                                                                return `Changed Status: ${formatStatus(details.old_status)} ➔ ${formatStatus(details.new_status)}`;
+                                                                                                const statusMap: Record<string, string> = {
+                                                                                                    'todo': 'To Do',
+                                                                                                    'doing': 'In Progress',
+                                                                                                    'done': 'Done'
+                                                                                                };
+                                                                                                const from = statusMap[details.old_status] || details.old_status.toUpperCase();
+                                                                                                const to = statusMap[details.new_status] || details.new_status.toUpperCase();
+                                                                                                return `${from} ➔ ${to}`;
                                                                                             }
                                                                                         } catch (e) { }
                                                                                     }
@@ -467,8 +473,13 @@ const TeacherStudentDetail: React.FC = () => {
                                                         <div className="space-y-3">
                                                             {taskReflections.map((ref: any) => (
                                                                 <div key={ref.id} className="bg-purple-50 p-4 border border-purple-100 rounded-lg">
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${ref.transition_type === 'start_work' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
+                                                                            {ref.transition_type === 'start_work' ? 'Starting Work' : 'Task Finished'}
+                                                                        </span>
+                                                                        <span className="text-xs text-purple-600 font-medium">{new Date(ref.created_at).toLocaleDateString()}</span>
+                                                                    </div>
                                                                     <p className="text-sm text-purple-900 italic">"{ref.content}"</p>
-                                                                    <p className="text-xs text-purple-600 mt-2 text-right">- {new Date(ref.created_at).toLocaleDateString()}</p>
                                                                 </div>
                                                             ))}
                                                         </div>

@@ -307,7 +307,9 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                         {reflections.map(ref => (
                                             <div key={ref.id} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <span className="font-medium text-sm text-gray-700">Student Log</span>
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${ref.transition_type === 'start_work' ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'}`}>
+                                                        {ref.transition_type === 'start_work' ? 'Starting Work' : 'Task Finished'}
+                                                    </span>
                                                     <span className="text-xs text-gray-400">{ref.created_at ? new Date(ref.created_at).toLocaleString() : ''}</span>
                                                 </div>
                                                 <p className="text-gray-600 text-sm whitespace-pre-wrap">{ref.content}</p>
