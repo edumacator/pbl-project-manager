@@ -8,6 +8,7 @@ class AuditLog implements JsonSerializable
 {
     public ?int $id;
     public int $userId;
+    public ?string $userName = null;
     public string $action;
     public ?string $details; // JSON string
     public ?string $createdAt;
@@ -28,12 +29,18 @@ class AuditLog implements JsonSerializable
 
     public function jsonSerialize(): mixed
     {
-        return [
+        $data = [
             'id' => $this->id,
             'user_id' => $this->userId,
             'action' => $this->action,
             'details' => $this->details ? json_decode($this->details) : null,
             'created_at' => $this->createdAt
         ];
+
+        if ($this->userName !== null) {
+            $data['user_name'] = $this->userName;
+        }
+
+        return $data;
     }
 }

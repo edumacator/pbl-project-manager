@@ -121,7 +121,9 @@ class ClassRepository implements ClassRepositoryInterface
                 $row['name'],
                 $row['email'],
                 $row['role'], // 'student'
-                (int) $row['id']
+                (int) $row['id'],
+                $row['first_name'] ?? '',
+                $row['last_name'] ?? ''
             );
         }
         return $students;

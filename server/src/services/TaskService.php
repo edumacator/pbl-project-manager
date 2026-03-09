@@ -194,6 +194,9 @@ class TaskService
         if (!$task)
             return null;
 
+        $oldStatus = $task->status;
+        $oldIsStuck = $task->isStuck;
+
         if (isset($data['title']))
             $task->title = $data['title'];
         if (isset($data['description']))
@@ -258,6 +261,26 @@ class TaskService
         }
 
         $this->taskRepo->update($task);
+
+        if ($this->auditRepo) {
+            if ($oldStatus !== $task->status) {
+                $log = new \App\Domain\AuditLog($userId, 'UPDATE_TASK_STATUS', json_encode([
+                    'task_id' => $taskId,
+                    'old_status' => $oldStatus,
+                    'new_status' => $task->status
+                ]));
+                $this->auditRepo->log($log);
+            }
+
+            if ($oldIsStuck !== $task->isStuck) {
+                $action = $task->isStuck ? 'MARKED_STUCK' : 'UNMARKED_STUCK';
+                $log = new \App\Domain\AuditLog($userId, $action, json_encode([
+                    'task_id' => $taskId
+                ]));
+                $this->auditRepo->log($log);
+            }
+        }
+
         return $task;
     }
 
