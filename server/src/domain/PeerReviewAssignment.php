@@ -11,6 +11,7 @@ class PeerReviewAssignment implements JsonSerializable
     public int $reviewerId;
     public int $revieweeId;
     public ?int $taskId;
+    public ?int $checkpointId;
     public string $status;
     public ?string $deadline;
     public ?string $createdAt;
@@ -19,12 +20,14 @@ class PeerReviewAssignment implements JsonSerializable
     public ?string $reviewerName;
     public ?string $revieweeName;
     public ?string $taskTitle;
+    public ?string $checkpointTitle;
 
     public function __construct(
         int $projectId,
         int $reviewerId,
         int $revieweeId,
         ?int $taskId = null,
+        ?int $checkpointId = null,
         string $status = 'pending',
         ?string $deadline = null,
         ?string $createdAt = null,
@@ -34,6 +37,7 @@ class PeerReviewAssignment implements JsonSerializable
         $this->reviewerId = $reviewerId;
         $this->revieweeId = $revieweeId;
         $this->taskId = $taskId;
+        $this->checkpointId = $checkpointId;
         $this->status = $status;
         $this->deadline = $deadline;
         $this->createdAt = $createdAt;
@@ -48,12 +52,14 @@ class PeerReviewAssignment implements JsonSerializable
             'reviewer_id' => $this->reviewerId,
             'reviewee_id' => $this->revieweeId,
             'task_id' => $this->taskId,
+            'checkpoint_id' => $this->checkpointId,
             'status' => $this->status,
             'deadline' => $this->deadline,
             'created_at' => $this->createdAt,
             'reviewer_name' => $this->reviewerName ?? null,
             'reviewee_name' => $this->revieweeName ?? null,
-            'task_title' => $this->taskTitle ?? null
+            'task_title' => $this->taskTitle ?? null,
+            'checkpoint_title' => $this->checkpointTitle ?? null
         ];
     }
 }

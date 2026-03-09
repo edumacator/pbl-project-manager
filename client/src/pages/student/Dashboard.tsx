@@ -16,14 +16,35 @@ interface DashboardTask extends Task {
 interface DashboardData {
     my_projects: any[];
     next_tasks: DashboardTask[];
+    completed_tasks: DashboardTask[];
     pending_reviews: any[];
     upcoming_checkpoints: any[];
+    recent_reflections?: {
+        task_id: number;
+        task_title: string;
+        project_id: number;
+        project_title: string;
+        reflections: any[];
+    }[];
+    upcoming_milestone_review?: { checkpoint_title: string; due_date: string; project_title: string; project_id: number; };
+    momentum: {
+        weekly: number;
+        streak: number;
+    };
 }
 
 const StudentDashboard: React.FC = () => {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [stuckModalTask, setStuckModalTask] = useState<DashboardTask | null>(null);
+    const [expandedReflectionTasks, setExpandedReflectionTasks] = useState<Set<number>>(new Set());
+
+    const toggleReflectionExpand = (taskId: number) => {
+        const newSet = new Set(expandedReflectionTasks);
+        if (newSet.has(taskId)) newSet.delete(taskId);
+        else newSet.add(taskId);
+        setExpandedReflectionTasks(newSet);
+    };
 
     const loadDashboard = () => {
         setLoading(true);
@@ -40,16 +61,33 @@ const StudentDashboard: React.FC = () => {
     if (loading) return <div className="p-8 text-center text-gray-500">Loading Mission Control...</div>;
     if (!data) return <div className="p-8 text-center text-red-500">Failed to load dashboard.</div>;
 
-    const { my_projects, next_tasks, pending_reviews, upcoming_checkpoints } = data;
+    const { my_projects, next_tasks, completed_tasks, pending_reviews, upcoming_checkpoints, upcoming_milestone_review, momentum, recent_reflections } = data;
 
     const stuckTasks = next_tasks.filter((t: DashboardTask) => t.is_stuck);
     const regularTasks = next_tasks.filter((t: DashboardTask) => !t.is_stuck);
 
     return (
         <div className="max-w-6xl mx-auto p-6">
-            <header className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Mission Control 🚀</h1>
-                <p className="text-gray-500">Your prioritized command center.</p>
+            <header className="mb-8 flex justify-between items-end">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">Mission Control 🚀</h1>
+                    <p className="text-gray-500">Your prioritized command center.</p>
+                </div>
+                {/* Momentum Meter */}
+                <div className="flex gap-6 bg-white px-6 py-3 rounded-2xl border border-gray-100 shadow-sm items-center">
+                    <div className="text-center">
+                        <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">This Week</div>
+                        <div className="text-xl font-bold text-indigo-600 leading-none">{momentum?.weekly || 0}</div>
+                    </div>
+                    <div className="w-px h-8 bg-gray-100"></div>
+                    <div className="text-center">
+                        <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Streak</div>
+                        <div className="text-xl font-bold text-amber-500 leading-none flex items-center justify-center gap-1">
+                            {momentum?.streak || 0}
+                            <span className="text-xs">🔥</span>
+                        </div>
+                    </div>
+                </div>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -67,7 +105,7 @@ const StudentDashboard: React.FC = () => {
                             <ul className="space-y-3">
                                 {my_projects.map(proj => (
                                     <li key={proj.id}>
-                                        <Link to={`/projects/${proj.id}`} className="block group">
+                                        <Link to={`/student/projects/${proj.id}`} className="block group">
                                             <div className="font-medium text-gray-800 group-hover:text-indigo-600 transition-colors">
                                                 {proj.title}
                                             </div>
@@ -93,10 +131,29 @@ const StudentDashboard: React.FC = () => {
 
                         <div className="space-y-4">
                             {regularTasks.length === 0 ? (
-                                <div className="p-10 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">
-                                    <PartyPopper className="w-10 h-10 mx-auto mb-3 text-yellow-500" />
-                                    <p className="font-medium">All caught up!</p>
-                                    <p className="text-sm">Check your project backlog for more.</p>
+                                <div className="space-y-6">
+                                    <div className="p-10 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">
+                                        <PartyPopper className="w-10 h-10 mx-auto mb-3 text-yellow-500" />
+                                        <p className="font-medium">All caught up!</p>
+                                        <p className="text-sm">Check your project backlog for more.</p>
+                                    </div>
+
+                                    {completed_tasks && completed_tasks.length > 0 && (
+                                        <div className="mt-8">
+                                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Recently Finished</h3>
+                                            <div className="space-y-3 opacity-70">
+                                                {completed_tasks.map(task => (
+                                                    <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                                        <div>
+                                                            <h4 className="font-medium text-gray-700 line-through decoration-gray-300">{task.title}</h4>
+                                                            <p className="text-[10px] text-gray-400">{task.project_title}</p>
+                                                        </div>
+                                                        <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold">Done</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 regularTasks.map(task => (
@@ -197,13 +254,30 @@ const StudentDashboard: React.FC = () => {
                             To Review
                         </h2>
                         {pending_reviews.length === 0 ? (
-                            <p className="text-gray-400 text-sm">No pending reviews.</p>
+                            <>
+                                <p className="text-gray-400 text-sm">No pending reviews.</p>
+                                {upcoming_milestone_review && (
+                                    <div className="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                        <div className="flex items-center text-amber-900 font-bold text-xs uppercase mb-1">
+                                            <AlertCircle className="w-3 h-3 mr-1 text-amber-600" />
+                                            Upcoming Milestone
+                                        </div>
+                                        <div className="text-sm font-medium text-amber-900 mb-1">{upcoming_milestone_review.checkpoint_title}</div>
+                                        <div className="text-xs text-amber-700 mb-2 truncate">{upcoming_milestone_review.project_title}</div>
+                                        <div className="text-[10px] text-amber-600 font-semibold mb-2">
+                                            Due: {new Date(upcoming_milestone_review.due_date).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="space-y-3">
                                 {pending_reviews.map(review => (
                                     <div key={review.id} className="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
                                         <div className="text-sm font-medium text-indigo-900 mb-1">{review.reviewee_name}</div>
-                                        <div className="text-xs text-indigo-600 mb-2 truncate">{review.task_title || 'General Review'}</div>
+                                        <div className="text-xs text-indigo-600 mb-2 truncate">
+                                            {review.checkpoint_title ? `Milestone: ${review.checkpoint_title}` : (review.task_title || 'General Review')}
+                                        </div>
                                         <Link
                                             to={`/student/reviews/${review.id}`}
                                             className="block w-full text-center py-1.5 bg-indigo-600 text-white rounded text-xs font-semibold hover:bg-indigo-700 transition-colors"
@@ -216,27 +290,75 @@ const StudentDashboard: React.FC = () => {
                         )}
                     </section>
 
-                    {/* Reflections */}
+                    {/* Reflections & Checkpoints */}
                     <section className="bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm">
                         <h2 className="flex items-center text-sm font-bold text-amber-900 mb-4 uppercase tracking-wider">
                             <AlertCircle className="w-4 h-4 mr-2 text-amber-600" />
                             Reflections
                         </h2>
-                        {upcoming_checkpoints.length === 0 ? (
-                            <p className="text-amber-700/60 text-sm">No checkpoints due soon.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {upcoming_checkpoints.map((cp, idx) => (
-                                    <div key={idx} className="bg-white/60 p-3 rounded-lg border border-amber-200/50">
-                                        <div className="font-semibold text-amber-900 text-xs">{cp.title}</div>
-                                        <div className="text-[10px] text-amber-800 mt-1 uppercase">Due: {new Date(cp.due_date).toLocaleDateString()}</div>
-                                        <Link to={`/projects/${cp.project_id}`} className="mt-2 block text-center py-1.5 bg-amber-500 text-white rounded text-xs font-semibold hover:bg-amber-600 transition-colors">
-                                            View
-                                        </Link>
+
+                        <div className="space-y-4">
+                            {upcoming_checkpoints.length > 0 && (
+                                <div>
+                                    <h3 className="text-[10px] font-bold text-amber-800 uppercase mb-2">Milestones Due</h3>
+                                    <div className="space-y-2">
+                                        {upcoming_checkpoints.map((cp, idx) => (
+                                            <div key={idx} className="bg-white/60 p-3 rounded-lg border border-amber-200/50 flex flex-col">
+                                                <div className="font-semibold text-amber-900 text-xs">{cp.title}</div>
+                                                <div className="text-[10px] text-amber-800 mt-1 uppercase">Due: {new Date(cp.due_date).toLocaleDateString()}</div>
+                                                <Link to={`/student/projects/${cp.project_id}`} className="mt-2 text-center py-1 bg-amber-500 text-white rounded text-[10px] font-semibold hover:bg-amber-600 transition-colors">
+                                                    View project
+                                                </Link>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                </div>
+                            )}
+
+                            {recent_reflections && recent_reflections.length > 0 && (
+                                <div>
+                                    <h3 className="text-[10px] font-bold text-amber-800 uppercase mb-2 mt-4">Past Task Reflections</h3>
+                                    <div className="space-y-3">
+                                        {recent_reflections.map((group) => {
+                                            const isExpanded = expandedReflectionTasks.has(group.task_id);
+                                            return (
+                                                <div key={group.task_id} className="bg-white/60 rounded-lg border border-amber-200/50 overflow-hidden">
+                                                    <button
+                                                        onClick={() => toggleReflectionExpand(group.task_id)}
+                                                        className="w-full text-left p-2.5 flex justify-between items-center hover:bg-amber-100/50 transition-colors"
+                                                    >
+                                                        <div>
+                                                            <div className="font-semibold text-amber-900 text-xs truncate max-w-[150px]">{group.task_title}</div>
+                                                            <div className="text-[9px] text-amber-800 mt-0.5">{group.reflections.length} reflection{group.reflections.length !== 1 ? 's' : ''}</div>
+                                                        </div>
+                                                        <div className="text-amber-500 text-[10px] font-bold ml-2">
+                                                            {isExpanded ? '▼' : '▶'}
+                                                        </div>
+                                                    </button>
+
+                                                    {isExpanded && (
+                                                        <div className="p-2.5 pt-0 border-t border-amber-100/50 bg-white/40 space-y-2 mt-2">
+                                                            {group.reflections.map((ref: any, idx: number) => (
+                                                                <div key={idx} className="text-[11px] text-amber-900 bg-white/80 p-2 rounded border border-amber-100 italic relative">
+                                                                    "{ref.content}"
+                                                                    <div className="text-[8px] text-amber-700/70 mt-1 font-semibold text-right">
+                                                                        {new Date(ref.created_at).toLocaleDateString()}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {upcoming_checkpoints.length === 0 && (!recent_reflections || recent_reflections.length === 0) && (
+                                <p className="text-amber-700/60 text-sm">No recent reflections or checkpoints due soon.</p>
+                            )}
+                        </div>
                     </section>
                 </div>
             </div>

@@ -17,8 +17,8 @@ class PeerReviewAssignmentRepository
     public function create(PeerReviewAssignment $assignment): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO peer_review_assignments (project_id, reviewer_id, reviewee_id, task_id, status, deadline)
-            VALUES (:project_id, :reviewer_id, :reviewee_id, :task_id, :status, :deadline)
+            INSERT INTO peer_review_assignments (project_id, reviewer_id, reviewee_id, task_id, checkpoint_id, status, deadline)
+            VALUES (:project_id, :reviewer_id, :reviewee_id, :task_id, :checkpoint_id, :status, :deadline)
         ");
 
         $stmt->execute([
@@ -26,6 +26,7 @@ class PeerReviewAssignmentRepository
             ':reviewer_id' => $assignment->reviewerId,
             ':reviewee_id' => $assignment->revieweeId,
             ':task_id' => $assignment->taskId,
+            ':checkpoint_id' => $assignment->checkpointId,
             ':status' => $assignment->status,
             ':deadline' => $assignment->deadline
         ]);
@@ -39,11 +40,13 @@ class PeerReviewAssignmentRepository
             SELECT pra.*, 
                    u1.name as reviewer_name, 
                    u2.name as reviewee_name,
-                   t.title as task_title
+                   t.title as task_title,
+                   cp.title as checkpoint_title
             FROM peer_review_assignments pra
             JOIN users u1 ON pra.reviewer_id = u1.id
             JOIN users u2 ON pra.reviewee_id = u2.id
             LEFT JOIN tasks t ON pra.task_id = t.id
+            LEFT JOIN checkpoints cp ON pra.checkpoint_id = cp.id
             WHERE pra.project_id = :project_id
             ORDER BY pra.created_at DESC
         ");
@@ -59,11 +62,13 @@ class PeerReviewAssignmentRepository
             SELECT pra.*, 
                    u1.name as reviewer_name, 
                    u2.name as reviewee_name,
-                   t.title as task_title
+                   t.title as task_title,
+                   cp.title as checkpoint_title
             FROM peer_review_assignments pra
             JOIN users u1 ON pra.reviewer_id = u1.id
             JOIN users u2 ON pra.reviewee_id = u2.id
             LEFT JOIN tasks t ON pra.task_id = t.id
+            LEFT JOIN checkpoints cp ON pra.checkpoint_id = cp.id
             WHERE pra.reviewer_id = :reviewer_id
         ";
         $params = [':reviewer_id' => $reviewerId];
@@ -91,6 +96,7 @@ class PeerReviewAssignmentRepository
             (int) $row['reviewer_id'],
             (int) $row['reviewee_id'],
             $row['task_id'] ? (int) $row['task_id'] : null,
+            $row['checkpoint_id'] ? (int) $row['checkpoint_id'] : null,
             $row['status'],
             $row['deadline'],
             $row['created_at'],
@@ -100,6 +106,7 @@ class PeerReviewAssignmentRepository
         $assignment->reviewerName = $row['reviewer_name'] ?? null;
         $assignment->revieweeName = $row['reviewee_name'] ?? null;
         $assignment->taskTitle = $row['task_title'] ?? null;
+        $assignment->checkpointTitle = $row['checkpoint_title'] ?? null;
 
         return $assignment;
     }
@@ -109,11 +116,13 @@ class PeerReviewAssignmentRepository
             SELECT pra.*, 
                    u1.name as reviewer_name, 
                    u2.name as reviewee_name,
-                   t.title as task_title
+                   t.title as task_title,
+                   cp.title as checkpoint_title
             FROM peer_review_assignments pra
             JOIN users u1 ON pra.reviewer_id = u1.id
             JOIN users u2 ON pra.reviewee_id = u2.id
             LEFT JOIN tasks t ON pra.task_id = t.id
+            LEFT JOIN checkpoints cp ON pra.checkpoint_id = cp.id
             WHERE pra.id = :id
         ");
         $stmt->execute([':id' => $id]);
