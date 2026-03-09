@@ -26,6 +26,8 @@ class Task implements JsonSerializable
     public string $priority;
     public ?string $updatedAt; // Restored
     public ?string $createdAt; // New
+    public ?array $checklist = null; // New
+    public ?array $checklistSummary = null; // New
 
     public function __construct(
         int $projectId,
@@ -97,7 +99,9 @@ class Task implements JsonSerializable
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
             'deleted_at' => $this->deletedAt,
-            'sort_order' => $this->sortOrder
+            'sort_order' => $this->sortOrder,
+            'checklist' => $this->checklist,
+            'checklist_summary' => $this->checklistSummary
         ];
     }
 }

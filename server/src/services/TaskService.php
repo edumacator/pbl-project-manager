@@ -15,6 +15,7 @@ class TaskService
     private \App\Repositories\MySQL\TaskReflectionRepository $reflectionRepo;
     private \App\Repositories\MySQL\ProjectResourceRepository $resourceRepo;
     private \App\Repositories\TaskChecklistItemRepositoryInterface $checklistRepo;
+    private \App\Repositories\UserRepositoryInterface $userRepo;
 
     public function __construct(
         TaskRepositoryInterface $taskRepo,
@@ -22,7 +23,8 @@ class TaskService
         ReviewService $reviewService,
         \App\Repositories\MySQL\TaskReflectionRepository $reflectionRepo,
         \App\Repositories\MySQL\ProjectResourceRepository $resourceRepo,
-        \App\Repositories\TaskChecklistItemRepositoryInterface $checklistRepo
+        \App\Repositories\TaskChecklistItemRepositoryInterface $checklistRepo,
+        \App\Repositories\UserRepositoryInterface $userRepo
     ) {
         $this->taskRepo = $taskRepo;
         $this->auditRepo = $auditRepo;
@@ -30,7 +32,7 @@ class TaskService
         $this->reflectionRepo = $reflectionRepo;
         $this->resourceRepo = $resourceRepo;
         $this->checklistRepo = $checklistRepo;
-    }
+        $this->userRepo = $userRepo;
 
     public function addReflection(int $taskId, int $userId, string $content, string $transitionType = 'start_work'): \App\Domain\TaskReflection
     {
@@ -105,19 +107,46 @@ class TaskService
         return $this->checklistRepo->findByTaskId($taskId);
     }
 
-    public function addChecklistItem(int $taskId, string $content): \App\Domain\TaskChecklistItem
+    public function addChecklistItem(int $taskId, string $content, int $userId): \App\Domain\TaskChecklistItem
     {
+        $task = $this->taskRepo->findById($taskId);
+        $user = $this->userRepo->findById($userId);
+        if (!$task || !$user) {
+            throw new \Exception("Task or User not found");
+        }
+
+        $isOwner = $task->assigneeId === $userId;
+        $isTeacher = $user->role === 'teacher';
+
+        if (!$isOwner && !$isTeacher) {
+            throw new \Exception("Only the task owner or a teacher can add checklist items");
+        }
+
         $item = new \App\Domain\TaskChecklistItem($taskId, $content);
         $id = $this->checklistRepo->create($item);
         $item->id = $id;
         return $item;
     }
 
-    public function updateChecklistItem(int $itemId, array $data): ?\App\Domain\TaskChecklistItem
+    public function updateChecklistItem(int $itemId, array $data, int $userId): ?\App\Domain\TaskChecklistItem
     {
         $item = $this->checklistRepo->findById($itemId);
         if (!$item)
             return null;
+
+        $task = $this->taskRepo->findById($item->taskId);
+        $user = $this->userRepo->findById($userId);
+
+        if (!$task || !$user) {
+            throw new \Exception("Task or User not found");
+        }
+
+        $isOwner = $task->assigneeId === $userId;
+        $isTeacher = $user->role === 'teacher';
+
+        if (!$isOwner && !$isTeacher) {
+            throw new \Exception("Only the task owner or a teacher can update checklist items");
+        }
 
         if (isset($data['content']))
             $item->content = $data['content'];
@@ -130,8 +159,26 @@ class TaskService
         return $item;
     }
 
-    public function deleteChecklistItem(int $itemId): bool
+    public function deleteChecklistItem(int $itemId, int $userId): bool
     {
+        $item = $this->checklistRepo->findById($itemId);
+        if (!$item)
+            return false;
+
+        $task = $this->taskRepo->findById($item->taskId);
+        $user = $this->userRepo->findById($userId);
+
+        if (!$task || !$user) {
+            throw new \Exception("Task or User not found");
+        }
+
+        $isOwner = $task->assigneeId === $userId;
+        $isTeacher = $user->role === 'teacher';
+
+        if (!$isOwner && !$isTeacher) {
+            throw new \Exception("Only the task owner or a teacher can delete checklist items");
+        }
+
         return $this->checklistRepo->delete($itemId);
     }
 

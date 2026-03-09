@@ -174,7 +174,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
 
     const handleAddChecklistItem = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!newChecklistItem.trim() || !task) return;
+        if (!newChecklistItem.trim() || !task || !canEdit) return;
         try {
             const newItem = await api.post(`/tasks/${task.id}/checklist`, { content: newChecklistItem.trim() });
             setChecklist([...checklist, newItem]);
@@ -186,6 +186,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     };
 
     const handleToggleChecklistItem = async (item: any) => {
+        if (!canEdit) return;
         try {
             const updated = await api.patch(`/checklist-items/${item.id}`, { is_completed: !item.is_completed });
             setChecklist(checklist.map(i => i.id === item.id ? updated : i));
@@ -196,6 +197,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     };
 
     const handleDeleteChecklistItem = async (itemId: number) => {
+        if (!canEdit) return;
         try {
             await api.delete(`/checklist-items/${itemId}`);
             setChecklist(checklist.filter(i => i.id !== itemId));
@@ -316,7 +318,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                         <ListChecks className="w-4 h-4 text-indigo-500" />
                                         Task Checklist
                                     </h3>
-                                    {!showChecklist && (
+                                    {!showChecklist && canEdit && (
                                         <button
                                             onClick={() => setShowChecklist(true)}
                                             className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
@@ -348,38 +350,43 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                                 <div key={item.id} className="group flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
                                                     <button
                                                         onClick={() => handleToggleChecklistItem(item)}
-                                                        className={`transition-colors ${item.is_completed ? 'text-green-500' : 'text-gray-300 group-hover:text-gray-400'}`}
+                                                        disabled={!canEdit}
+                                                        className={`transition-colors ${item.is_completed ? 'text-green-500' : 'text-gray-300 group-hover:text-gray-400'} ${!canEdit ? 'cursor-default' : ''}`}
                                                     >
                                                         {item.is_completed ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                                                     </button>
                                                     <span className={`flex-1 text-sm ${item.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                                                         {item.content}
                                                     </span>
-                                                    <button
-                                                        onClick={() => handleDeleteChecklistItem(item.id)}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    {canEdit && (
+                                                        <button
+                                                            onClick={() => handleDeleteChecklistItem(item.id)}
+                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
 
-                                        <form onSubmit={handleAddChecklistItem} className="mt-4">
-                                            <input
-                                                type="text"
-                                                value={newChecklistItem}
-                                                onChange={(e) => setNewChecklistItem(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && newChecklistItem.trim()) {
-                                                        handleAddChecklistItem();
-                                                    }
-                                                }}
-                                                placeholder="Add a step..."
-                                                className="w-full text-sm p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                            />
-                                            <p className="text-[10px] text-gray-400 mt-1 italic">Press Enter to add and keep typing</p>
-                                        </form>
+                                        {canEdit && (
+                                            <form onSubmit={handleAddChecklistItem} className="mt-4">
+                                                <input
+                                                    type="text"
+                                                    value={newChecklistItem}
+                                                    onChange={(e) => setNewChecklistItem(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && newChecklistItem.trim()) {
+                                                            handleAddChecklistItem();
+                                                        }
+                                                    }}
+                                                    placeholder="Add a step..."
+                                                    className="w-full text-sm p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                                />
+                                                <p className="text-[10px] text-gray-400 mt-1 italic">Press Enter to add and keep typing</p>
+                                            </form>
+                                        )}
 
                                         {checklist.length > 0 && checklist.every(i => i.is_completed) && task.status !== 'done' && (
                                             <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-100 animate-in fade-in slide-in-from-top-2">
@@ -399,12 +406,14 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                 ) : (
                                     <div className="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
                                         <p className="text-xs text-gray-500 mb-2">Helpful for breaking work into smaller pieces.</p>
-                                        <button
-                                            onClick={() => setShowChecklist(true)}
-                                            className="text-xs font-bold uppercase tracking-wider bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg shadow-sm transition-all"
-                                        >
-                                            Start a Checklist
-                                        </button>
+                                        {canEdit && (
+                                            <button
+                                                onClick={() => setShowChecklist(true)}
+                                                className="text-xs font-bold uppercase tracking-wider bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg shadow-sm transition-all"
+                                            >
+                                                Start a Checklist
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
