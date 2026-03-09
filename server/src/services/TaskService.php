@@ -196,6 +196,7 @@ class TaskService
 
         $oldStatus = $task->status;
         $oldIsStuck = $task->isStuck;
+        $oldAssigneeId = $task->assigneeId;
 
         if (isset($data['title']))
             $task->title = $data['title'];
@@ -276,6 +277,16 @@ class TaskService
                 $action = $task->isStuck ? 'MARKED_STUCK' : 'UNMARKED_STUCK';
                 $log = new \App\Domain\AuditLog($userId, $action, json_encode([
                     'task_id' => $taskId
+                ]));
+                $this->auditRepo->log($log);
+            }
+
+            if ($oldAssigneeId !== $task->assigneeId) {
+                $action = $task->assigneeId ? 'ASSIGNED_TASK' : 'UNASSIGNED_TASK';
+                $log = new \App\Domain\AuditLog($userId, $action, json_encode([
+                    'task_id' => $taskId,
+                    'old_assignee_id' => $oldAssigneeId,
+                    'new_assignee_id' => $task->assigneeId
                 ]));
                 $this->auditRepo->log($log);
             }

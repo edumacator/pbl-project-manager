@@ -312,7 +312,7 @@ if (preg_match('#^/api/v1/projects/(\d+)$#', $uri, $matches)) {
                                     'dependencies' => []
                                 ];
                                 // 1 = Generic system/teacher user for creation
-                                $taskService->createTask($taskData, 1);
+                                $taskService->createTask($taskData, $currentUser->id);
                             }
                         }
                     }
