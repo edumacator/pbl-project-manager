@@ -460,15 +460,8 @@ const ProjectBoard: React.FC = () => {
         const task = tasks.find(t => t.id === taskId);
         if (!task || task.status === newStatus) return;
 
-        // Gatekeeper Logic
-        if (newStatus === 'done') {
-            if (task.is_completable === false) {
-                // Block and Open Critique Modal
-                setCritiqueTask(task);
-                setIsCritiqueModalOpen(true);
-                return;
-            }
-        }
+        // Gatekeeper Logic: Teachers bypass student-facing critique rituals
+        // if (newStatus === 'done' && task.is_completable === false) { ... }
 
         updateTaskStatus(taskId, newStatus);
     };

@@ -737,7 +737,7 @@ if (preg_match('#^/api/v1/tasks/(\d+)/reflections$#', $uri, $matches)) {
         $input = json_decode(file_get_contents('php://input'), true);
         $userId = $currentUser->id;
         try {
-            $reflection = $taskService->addReflection($taskId, $userId, $input['content'] ?? '');
+            $reflection = $taskService->addReflection($taskId, $userId, $input['content'] ?? '', $input['transition_type'] ?? 'start_work');
             echo json_encode(['ok' => true, 'data' => ['reflection' => $reflection]]);
         } catch (\Exception $e) {
             http_response_code(500);

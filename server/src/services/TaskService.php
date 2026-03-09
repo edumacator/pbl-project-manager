@@ -29,9 +29,9 @@ class TaskService
         $this->resourceRepo = $resourceRepo;
     }
 
-    public function addReflection(int $taskId, int $userId, string $content): \App\Domain\TaskReflection
+    public function addReflection(int $taskId, int $userId, string $content, string $transitionType = 'start_work'): \App\Domain\TaskReflection
     {
-        $reflection = new \App\Domain\TaskReflection($taskId, $userId, $content);
+        $reflection = new \App\Domain\TaskReflection($taskId, $userId, $content, $transitionType);
         $id = $this->reflectionRepo->create($reflection);
         $reflection->id = $id;
 

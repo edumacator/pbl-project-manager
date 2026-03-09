@@ -59,14 +59,15 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                                     key={task.id}
                                     draggable={true} // Always draggable so we can intercept the drag attempt and show the error toast
                                     onDragStart={(e) => {
-                                        if (isOwner) {
+                                        const canMoveTask = isOwner || user?.role === 'teacher';
+                                        if (canMoveTask) {
                                             e.dataTransfer.setData("taskId", task.id.toString());
                                         } else {
                                             e.preventDefault();
                                             addToast("You can only move tasks assigned to you.", 'error');
                                         }
                                     }}
-                                    className={`bg-white p-4 rounded-lg shadow-sm border ${!task.is_completable && column.id !== 'done' ? 'border-l-4 border-l-amber-400 border-y-gray-200 border-r-gray-200' : 'border-gray-200'} ${isOwner ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:bg-gray-50'} transition-all`}
+                                    className={`bg-white p-4 rounded-lg shadow-sm border ${!task.is_completable && column.id !== 'done' ? 'border-l-4 border-l-amber-400 border-y-gray-200 border-r-gray-200' : 'border-gray-200'} ${(isOwner || user?.role === 'teacher') ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:bg-gray-50'} transition-all`}
                                     onClick={() => onTaskClick?.(task)}
                                     title={!task.is_completable ? "Critique Required before Done" : ""}
                                 >

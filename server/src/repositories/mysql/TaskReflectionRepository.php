@@ -17,14 +17,15 @@ class TaskReflectionRepository
     public function create(TaskReflection $reflection): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO task_reflections (task_id, user_id, content)
-            VALUES (:task_id, :user_id, :content)
+            INSERT INTO task_reflections (task_id, user_id, content, transition_type)
+            VALUES (:task_id, :user_id, :content, :transition_type)
         ");
 
         $stmt->execute([
             ':task_id' => $reflection->taskId,
             ':user_id' => $reflection->userId,
-            ':content' => $reflection->content
+            ':content' => $reflection->content,
+            ':transition_type' => $reflection->transitionType
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -51,6 +52,7 @@ class TaskReflectionRepository
             (int) $row['task_id'],
             (int) $row['user_id'],
             $row['content'],
+            $row['transition_type'] ?? 'start_work',
             (int) $row['id'],
             $row['created_at'],
             $row['user_name'] ?? null

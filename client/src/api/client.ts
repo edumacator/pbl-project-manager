@@ -62,4 +62,11 @@ export const api = {
             method: 'POST',
             body: JSON.stringify(data)
         }),
+
+    // Task Reflection
+    saveTaskReflection: (taskId: number, content: string, transitionType: string) =>
+        request(`/tasks/${taskId}/reflections`, {
+            method: 'POST',
+            body: JSON.stringify({ content, transition_type: transitionType })
+        }),
 };
