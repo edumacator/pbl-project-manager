@@ -21,10 +21,12 @@ class ClassRepository implements ClassRepositoryInterface
 
     public function create(ClassEntity $class): int
     {
-        $stmt = $this->pdo->prepare("INSERT INTO classes (name, teacher_id) VALUES (:name, :teacher_id)");
+        $joinCode = substr(md5(uniqid(mt_rand(), true)), 0, 6);
+        $stmt = $this->pdo->prepare("INSERT INTO classes (name, teacher_id, join_code) VALUES (:name, :teacher_id, :join_code)");
         $stmt->execute([
             ':name' => $class->name,
-            ':teacher_id' => $class->teacherId
+            ':teacher_id' => $class->teacherId,
+            ':join_code' => $joinCode
         ]);
         return (int) $this->pdo->lastInsertId();
     }
@@ -64,7 +66,27 @@ class ClassRepository implements ClassRepositoryInterface
             (int) $row['teacher_id'],
             (int) $row['id'],
             $row['created_at'],
-            $row['deleted_at'] ?? null
+            $row['deleted_at'] ?? null,
+            $row['join_code'] ?? null
+        );
+    }
+
+    public function findByJoinCode(string $code): ?ClassEntity
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM classes WHERE join_code = :code AND deleted_at IS NULL");
+        $stmt->execute([':code' => $code]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row)
+            return null;
+
+        return new ClassEntity(
+            $row['name'],
+            (int) $row['teacher_id'],
+            (int) $row['id'],
+            $row['created_at'],
+            $row['deleted_at'] ?? null,
+            $row['join_code']
         );
     }
 
@@ -87,8 +109,38 @@ class ClassRepository implements ClassRepositoryInterface
                 (int) $row['teacher_id'],
                 (int) $row['id'],
                 $row['created_at'],
-                $row['deleted_at'] ?? null
+                $row['deleted_at'] ?? null,
+                $row['join_code'] ?? null
             );
+        }
+        return $classes;
+    }
+
+    public function findAllWithTeachers(): array
+    {
+        $sql = "
+            SELECT c.*, u.name as teacher_name 
+            FROM classes c
+            JOIN users u ON c.teacher_id = u.id
+            WHERE c.deleted_at IS NULL
+            ORDER BY u.name ASC, c.name ASC
+        ";
+        $stmt = $this->pdo->query($sql);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $classes = [];
+        foreach ($rows as $row) {
+            $classes[] = [
+                'class' => new ClassEntity(
+                    $row['name'],
+                    (int) $row['teacher_id'],
+                    (int) $row['id'],
+                    $row['created_at'],
+                    $row['deleted_at'] ?? null,
+                    $row['join_code']
+                ),
+                'teacher_name' => $row['teacher_name']
+            ];
         }
         return $classes;
     }

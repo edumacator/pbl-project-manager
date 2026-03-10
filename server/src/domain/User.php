@@ -11,7 +11,7 @@ class User implements JsonSerializable
     public string $first_name;
     public string $last_name;
     public string $email;
-    public string $role; // 'teacher' or 'student'
+    public string $role; // 'teacher', 'student', or 'admin'
     public ?string $password_hash;
     public ?string $auth_token;
 

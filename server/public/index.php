@@ -113,6 +113,7 @@ try {
     $timelineService = new \App\Services\TimelineService($taskRepo, $projectRepo, $teamRepo, $checkpointRepo, $reviewService);
     $analyticsService = new AnalyticsService();
     $qnaService = new ProjectQnaService($qnaRepo);
+    $adminService = new \App\Services\AdminService($userRepo, $classRepo, $projectRepo, $taskRepo);
 } catch (\Throwable $e) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => ['code' => 'BOOTSTRAP_ERROR', 'message' => $e->getMessage()]]);
@@ -170,7 +171,7 @@ if ($uri === '/api/v1/auth/register' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Student Password Reset
 if (preg_match('#^/api/v1/students/(\d+)/reset-password$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!$currentUser || $currentUser->role !== 'teacher') {
+    if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
         http_response_code(401);
         echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only teachers can reset passwords']]);
         exit;
@@ -188,6 +189,98 @@ if (preg_match('#^/api/v1/students/(\d+)/reset-password$#', $uri, $matches) && $
         echo json_encode(['ok' => false, 'error' => ['code' => 'ERROR', 'message' => $e->getMessage()]]);
     }
     exit;
+}
+
+// Projects Batch Delete
+if ($uri === '/api/v1/projects-batch-delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only teachers and admins can delete projects in batch']]);
+        exit;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $projectIds = $input['project_ids'] ?? [];
+
+    if (!is_array($projectIds) || empty($projectIds)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'INVALID_INPUT', 'message' => 'Project IDs are required']]);
+        exit;
+    }
+
+    try {
+        $deletedCount = $projectService->batchDeleteProjects($projectIds);
+        echo json_encode(['ok' => true, 'data' => ['deleted_count' => $deletedCount]]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+// Join Class via Code
+if ($uri === '/api/v1/students/join-class' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentUser || $currentUser->role !== 'student') {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only students can join classes']]);
+        exit;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $code = $input['join_code'] ?? '';
+
+    try {
+        $classService->joinClassWithCode($code, $currentUser->id);
+        echo json_encode(['ok' => true, 'data' => ['joined' => true]]);
+    } catch (\Exception $e) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+// ADMIN ROUTES
+if (str_starts_with($uri, '/api/v1/admin/')) {
+    if (!$currentUser || $currentUser->role !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Admin access required']]);
+        exit;
+    }
+
+    // List all users
+    if ($uri === '/api/v1/admin/users' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+        echo json_encode(['ok' => true, 'data' => $adminService->getAllUsers()]);
+        exit;
+    }
+
+    // Update user
+    if (preg_match('#^/api/v1/admin/users/(\d+)$#', $uri, $matches) && ($_SERVER['REQUEST_METHOD'] === 'PATCH' || $_SERVER['REQUEST_METHOD'] === 'PUT')) {
+        $userId = (int) $matches[1];
+        $input = json_decode(file_get_contents('php://input'), true);
+        $success = $adminService->updateUser($userId, $input);
+        echo json_encode(['ok' => $success]);
+        exit;
+    }
+
+    // Delete user
+    if (preg_match('#^/api/v1/admin/users/(\d+)$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        $userId = (int) $matches[1];
+        $success = $adminService->deleteUser($userId);
+        echo json_encode(['ok' => $success]);
+        exit;
+    }
+
+    // System Stats
+    if ($uri === '/api/v1/admin/stats' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+        echo json_encode(['ok' => true, 'data' => $adminService->getSystemStats()]);
+        exit;
+    }
+
+    // All Classes
+    if ($uri === '/api/v1/admin/classes' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+        echo json_encode(['ok' => true, 'data' => $adminService->getAllClasses()]);
+        exit;
+    }
 }
 
 // Users Search
@@ -229,7 +322,7 @@ if ($uri === '/api/v1/projects' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         if ($classId) {
             $projects = $projectService->getProjectsByClass($classId, $includeDeleted);
         } else if ($currentUser) {
-            if ($currentUser->role === 'teacher') {
+            if (in_array($currentUser->role, ['teacher', 'admin'])) {
                 $projects = $projectService->getProjectsByTeacher($currentUser->id, $includeDeleted);
             } else if ($currentUser->role === 'student') {
                 $projects = $projectService->getProjectsByStudent($currentUser->id, $includeDeleted);
@@ -678,7 +771,7 @@ if (preg_match('#^/api/v1/tasks/(\d+)/messages$#', $uri, $matches)) {
             // Filter visibility
             $filteredMessages = [];
             foreach ($allMessages as $msg) {
-                if ($currentUser->role === 'teacher') {
+                if (in_array($currentUser->role, ['teacher', 'admin'])) {
                     $filteredMessages[] = $msg;
                 } else {
                     // Student logic
@@ -1024,7 +1117,7 @@ if (preg_match('#^/api/v1/resources/(\d+)$#', $uri, $matches)) {
             exit;
         }
 
-        if ($currentUser->role !== 'teacher' && $resource->userId !== $currentUser->id) {
+        if (!in_array($currentUser->role, ['teacher', 'admin']) && $resource->userId !== $currentUser->id) {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Unauthorized to delete this resource']]);
             exit;
@@ -1060,7 +1153,7 @@ if (preg_match('#^/api/v1/resources/(\d+)$#', $uri, $matches)) {
             exit;
         }
 
-        if ($currentUser->role !== 'teacher' && $resource->userId !== $currentUser->id) {
+        if (!in_array($currentUser->role, ['teacher', 'admin']) && $resource->userId !== $currentUser->id) {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Unauthorized to update this resource']]);
             exit;
@@ -1121,9 +1214,9 @@ if (preg_match('#^/api/v1/projects/(\d+)/qna/(\d+)$#', $uri, $matches) && ($_SER
     $qnaId = (int) $matches[2];
     $input = json_decode(file_get_contents('php://input'), true);
 
-    if (!$currentUser || $currentUser->role !== 'teacher') {
+    if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
         http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only teachers can answer questions.']]);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only teachers and admins can answer questions.']]);
         exit;
     }
 
@@ -1324,7 +1417,7 @@ if (preg_match('#^/api/v1/projects/(\d+)/assignments/auto$#', $uri, $matches) &&
 // Classes
 if ($uri === '/api/v1/classes') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        if (!$currentUser || $currentUser->role !== 'teacher') {
+        if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
             http_response_code(401);
             echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
             exit;
@@ -1342,7 +1435,7 @@ if ($uri === '/api/v1/classes') {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (!$currentUser || $currentUser->role !== 'teacher') {
+        if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
             http_response_code(401);
             echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
             exit;
@@ -1506,6 +1599,60 @@ if (preg_match('#^/api/v1/classes/(\d+)/milestones$#', $uri, $matches)) {
     }
 }
 
+// Checkpoints
+if ($uri === '/api/v1/checkpoints' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+    $input = json_decode(file_get_contents('php://input'), true);
+    try {
+        $projectId = $input['project_id'] ?? null;
+        $classId = $input['class_id'] ?? null;
+        $title = $input['title'] ?? '';
+        $dueDate = $input['due_date'] ?? null;
+
+        if ($projectId) {
+            $checkpoint = $checkpointService->createCheckpoint($projectId, $title, $dueDate);
+        } elseif ($classId) {
+            $checkpoint = $checkpointService->createClassCheckpoint($classId, $title, $dueDate);
+        } else {
+            throw new \InvalidArgumentException("Either project_id or class_id is required.");
+        }
+        echo json_encode(['ok' => true, 'data' => ['checkpoint' => $checkpoint]]);
+    } catch (\InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'INVALID_INPUT', 'message' => $e->getMessage()]]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+if (preg_match('#^/api/v1/checkpoints/(\d+)$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+    $checkpointId = (int) $matches[1];
+    try {
+        $success = $checkpointService->deleteCheckpoint($checkpointId);
+        if ($success) {
+            echo json_encode(['ok' => true, 'data' => ['deleted' => true]]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Checkpoint not found']]);
+        }
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
 // Student Dashboard
 if ($uri === '/api/v1/student/dashboard' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     if (!$currentUser || $currentUser->role !== 'student') {
@@ -1596,7 +1743,7 @@ if (preg_match('#^/api/v1/peer-reviews/(\d+)/submit$#', $uri, $matches)) {
 // Analytics
 if ($uri === '/api/v1/analytics/at-risk' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        if (!$currentUser || $currentUser->role !== 'teacher') {
+        if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
             http_response_code(401);
             echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
             exit;
@@ -1613,7 +1760,7 @@ if ($uri === '/api/v1/analytics/at-risk' && $_SERVER['REQUEST_METHOD'] === 'GET'
 
 if ($uri === '/api/v1/analytics/stuck-teams' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        if (!$currentUser || $currentUser->role !== 'teacher') {
+        if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
             http_response_code(401);
             echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
             exit;

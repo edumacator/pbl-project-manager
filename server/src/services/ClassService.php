@@ -85,6 +85,16 @@ class ClassService
         return $this->classRepo->enrollStudent($classId, $studentId);
     }
 
+    public function joinClassWithCode(string $code, int $studentId): bool
+    {
+        $class = $this->classRepo->findByJoinCode($code);
+        if (!$class) {
+            throw new \Exception("Invalid join code.");
+        }
+
+        return $this->classRepo->enrollStudent($class->id, $studentId);
+    }
+
     public function enrollStudentByEmail(int $classId, string $email, string $name = ''): \App\Domain\User
     {
         // 1. Check if user exists

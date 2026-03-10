@@ -5,6 +5,7 @@ import { Class, User, Project, Team } from '../types';
 import { Users, Plus, ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Pencil, ExternalLink, Key, Trash2 } from 'lucide-react';
 import { AssignProjectModal } from '../components/AssignProjectModal';
 import { TeamMembersModal } from '../components/TeamMembersModal';
+import { JoinCodeModal } from '../components/JoinCodeModal';
 import { useToast } from '../contexts/ToastContext';
 
 interface ProjectWithTeams extends Project {
@@ -24,6 +25,7 @@ const ClassDetail: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [atRiskStudents, setAtRiskStudents] = useState<any[]>([]);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState(false);
     const { addToast } = useToast();
 
     useEffect(() => {
@@ -198,7 +200,17 @@ const ClassDetail: React.FC = () => {
                         <span className="mx-2">/</span>
                         <span>Class Detail</span>
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-900">{data.class.name}</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-gray-900">{data.class.name}</h1>
+                        <button
+                            onClick={() => setIsJoinCodeModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-white border border-indigo-200 text-indigo-600 rounded-full hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-sm text-sm font-semibold"
+                            title="Show Join Code"
+                        >
+                            <Key className="w-4 h-4" />
+                            Join Code
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -449,6 +461,14 @@ const ClassDetail: React.FC = () => {
                         });
                         setEditingTeam(updatedTeam);
                     }}
+                />
+            )}
+            {data && (
+                <JoinCodeModal
+                    isOpen={isJoinCodeModalOpen}
+                    onClose={() => setIsJoinCodeModalOpen(false)}
+                    className={data.class.name}
+                    joinCode={data.class.join_code}
                 />
             )}
         </div>

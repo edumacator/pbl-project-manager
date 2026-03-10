@@ -33,6 +33,18 @@ class UserRepository implements UserRepositoryInterface
         return $row ? $this->mapRowToUser($row) : null;
     }
 
+    public function findAll(): array
+    {
+        $stmt = $this->pdo->query("SELECT * FROM users ORDER BY name ASC");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $users = [];
+        foreach ($rows as $row) {
+            $users[] = $this->mapRowToUser($row);
+        }
+        return $users;
+    }
+
     public function create(User $user): int
     {
         $stmt = $this->pdo->prepare("
@@ -51,6 +63,30 @@ class UserRepository implements UserRepositoryInterface
         ]);
 
         return (int) $this->pdo->lastInsertId();
+    }
+
+    public function update(User $user): bool
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE users 
+            SET first_name = :first_name, last_name = :last_name, name = :name, email = :email, role = :role
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':first_name' => $user->first_name,
+            ':last_name' => $user->last_name,
+            ':name' => $user->name,
+            ':email' => $user->email,
+            ':role' => $user->role,
+            ':id' => $user->id
+        ]);
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM users WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
     }
 
     public function updateAuthToken(int $userId, ?string $token): void

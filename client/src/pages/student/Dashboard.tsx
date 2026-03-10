@@ -3,8 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import { Task } from '../../types';
-import { Clock, AlertCircle, MessageSquare, Lock, PartyPopper, AlertTriangle, Layers } from 'lucide-react';
+import { Clock, AlertCircle, MessageSquare, Lock, PartyPopper, AlertTriangle, Layers, UserPlus } from 'lucide-react';
 import StuckTaskModal from '../../components/StuckTaskModal';
+import { useToast } from '../../contexts/ToastContext';
 
 // Fix type inheritance issue where Task import was missing
 interface DashboardTask extends Task {
@@ -38,6 +39,9 @@ const StudentDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [stuckModalTask, setStuckModalTask] = useState<DashboardTask | null>(null);
     const [expandedReflectionTasks, setExpandedReflectionTasks] = useState<Set<number>>(new Set());
+    const { addToast } = useToast();
+    const [joinCode, setJoinCode] = useState('');
+    const [joining, setJoining] = useState(false);
 
     const toggleReflectionExpand = (taskId: number) => {
         const newSet = new Set(expandedReflectionTasks);
@@ -52,6 +56,22 @@ const StudentDashboard: React.FC = () => {
             .then(data => setData(data))
             .catch(err => console.error(err))
             .finally(() => setLoading(false));
+    };
+
+    const handleJoinClass = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!joinCode) return;
+        setJoining(true);
+        try {
+            await api.post('/students/join-class', { join_code: joinCode });
+            addToast('Successfully joined the class!', 'success');
+            setJoinCode('');
+            loadDashboard();
+        } catch (err: any) {
+            addToast(err.message || 'Failed to join class', 'error');
+        } finally {
+            setJoining(false);
+        }
     };
 
     useEffect(() => {
@@ -89,6 +109,38 @@ const StudentDashboard: React.FC = () => {
                     </div>
                 </div>
             </header>
+
+            {/* Join Class section */}
+            <section className="bg-indigo-600 p-6 rounded-2xl border border-indigo-700 shadow-lg text-white mb-8 transition-all hover:shadow-xl">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white/20 rounded-xl">
+                            <UserPlus className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold">Join a new class?</h2>
+                            <p className="text-indigo-100 text-sm">Enter the 6-digit code provided by your teacher.</p>
+                        </div>
+                    </div>
+                    <form className="flex gap-2 w-full md:w-auto" onSubmit={handleJoinClass}>
+                        <input
+                            type="text"
+                            placeholder="CODE12"
+                            className="flex-1 md:flex-none bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 w-full md:w-32 uppercase font-mono font-bold text-center tracking-widest"
+                            value={joinCode}
+                            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                            maxLength={6}
+                        />
+                        <button
+                            type="submit"
+                            disabled={joining || !joinCode}
+                            className="bg-white text-indigo-600 px-8 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors disabled:opacity-50 shadow-sm"
+                        >
+                            {joining ? 'Joining...' : 'Join'}
+                        </button>
+                    </form>
+                </div>
+            </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 

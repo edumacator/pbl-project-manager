@@ -117,7 +117,7 @@ class TaskService
         }
 
         $isOwner = $task->assigneeId === $userId;
-        $isTeacher = $user->role === 'teacher';
+        $isTeacher = in_array($user->role, ['teacher', 'admin']);
 
         if (!$isOwner && !$isTeacher) {
             throw new \Exception("Only the task owner or a teacher can add checklist items");
@@ -143,7 +143,7 @@ class TaskService
         }
 
         $isOwner = $task->assigneeId === $userId;
-        $isTeacher = $user->role === 'teacher';
+        $isTeacher = in_array($user->role, ['teacher', 'admin']);
 
         if (!$isOwner && !$isTeacher) {
             throw new \Exception("Only the task owner or a teacher can update checklist items");
@@ -174,7 +174,7 @@ class TaskService
         }
 
         $isOwner = $task->assigneeId === $userId;
-        $isTeacher = $user->role === 'teacher';
+        $isTeacher = in_array($user->role, ['teacher', 'admin']);
 
         if (!$isOwner && !$isTeacher) {
             throw new \Exception("Only the task owner or a teacher can delete checklist items");
