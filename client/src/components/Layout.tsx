@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, CheckSquare, LogOut, Plus, Users } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, CheckSquare, LogOut, Plus, Users, ShieldCheck } from 'lucide-react';
 import { api } from '../api/client';
 import { Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,6 +69,22 @@ const Layout: React.FC = () => {
                             </Link>
                         </>
                     )}
+                    {(user?.role as any) === 'admin' && (
+                        <>
+                            <Link to="/teacher/dashboard" className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/teacher/dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                <LayoutDashboard className="w-5 h-5 mr-3" />
+                                Dashboard
+                            </Link>
+                            <Link to="/teacher/student-detail" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/teacher/student-detail' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                <Users className="w-5 h-5 mr-3" />
+                                Student Detail
+                            </Link>
+                            <Link to="/admin/dashboard" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors bg-amber-50 text-amber-700 hover:bg-amber-100`}>
+                                <ShieldCheck className="w-5 h-5 mr-3" />
+                                Admin Dashboard
+                            </Link>
+                        </>
+                    )}
 
                     {user?.role === 'student' && (
                         <Link to="/student/today" className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/student/today' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
@@ -84,7 +100,7 @@ const Layout: React.FC = () => {
                         </div>
                         <div className="space-y-1">
                             {projects.map(p => {
-                                const destination = user?.role === 'teacher' ? `/projects/${p.id}` : `/student/projects/${p.id}`;
+                                const destination = (user?.role === 'teacher' || (user?.role as any) === 'admin') ? `/projects/${p.id}` : `/student/projects/${p.id}`;
                                 return (
                                     <Link key={p.id} to={destination} className={`flex items-center px-4 py-2 text-sm rounded-lg transition-colors ${location.pathname === destination ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                                         <FolderKanban className="w-4 h-4 mr-3 opacity-70" />

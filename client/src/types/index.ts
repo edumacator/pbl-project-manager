@@ -11,6 +11,7 @@ export interface Class {
     id: number;
     name: string;
     teacher_id: number;
+    join_code?: string; // Access code for students
     created_at?: string;
     deleted_at?: string; // Added for soft delete
     students?: User[]; // Optional, present in detailed view

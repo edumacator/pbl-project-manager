@@ -209,4 +209,15 @@ class ProjectService
         }
         return false;
     }
+
+    public function batchDeleteProjects(array $ids): int
+    {
+        $count = 0;
+        foreach ($ids as $id) {
+            if ($this->projectRepo->delete((int) $id)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
 }

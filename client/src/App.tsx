@@ -14,6 +14,11 @@ import { ToastContainer } from './components/Toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
+import AdminLayout from './pages/admin/AdminLayout';
+import AdminOverview from './pages/admin/AdminOverview';
+import UserManagement from './pages/admin/UserManagement';
+import ClassOverview from './pages/admin/ClassOverview';
 
 function App() {
     return (
@@ -22,13 +27,14 @@ function App() {
                 <BrowserRouter>
                     <Routes>
                         <Route path="/login" element={<Login />} />
+                        <Route path="/signup" element={<Signup />} />
 
                         <Route path="/" element={<ProtectedRoute />} >
                             <Route element={<Layout />}>
                                 <Route index element={<Navigate to="/login" replace />} />
 
-                                {/* Teacher Routes */}
-                                <Route element={<ProtectedRoute allowedRoles={['teacher']} />}>
+                                {/* Teacher & Admin Routes */}
+                                <Route element={<ProtectedRoute allowedRoles={['teacher', 'admin']} />}>
                                     <Route path="teacher" element={<Navigate to="/teacher/dashboard" replace />} />
                                     <Route path="teacher/dashboard" element={<TeacherDashboard />} />
                                     <Route path="classes/:id" element={<ClassDetail />} />
@@ -47,6 +53,18 @@ function App() {
                                 </Route>
                             </Route>
                         </Route>
+
+                        {/* Admin Routes */}
+                        <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']} />}>
+                            <Route element={<AdminLayout />}>
+                                <Route path="dashboard" element={<AdminOverview />} />
+                                <Route path="users" element={<UserManagement />} />
+                                <Route path="classes" element={<ClassOverview />} />
+                                <Route path="stats" element={<AdminOverview />} />
+                            </Route>
+                        </Route>
+
+                        <Route path="/" element={<Navigate to="/login" replace />} />
                     </Routes>
                 </BrowserRouter>
                 <ToastContainer />

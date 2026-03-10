@@ -78,4 +78,9 @@ class CheckpointService
     {
         return $this->reflectionRepo->findByCheckpointId($checkpointId);
     }
+
+    public function deleteCheckpoint(int $checkpointId): bool
+    {
+        return $this->checkpointRepo->delete($checkpointId);
+    }
 }
