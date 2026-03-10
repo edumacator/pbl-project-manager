@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Project, TaskReflection, ProjectResource, TaskMessage } from '../types';
-import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock } from 'lucide-react';
+import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks } from 'lucide-react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,6 +34,9 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const { user } = useAuth();
     const [isStuck, setIsStuck] = useState(task?.is_stuck || false);
     const [showStuckModal, setShowStuckModal] = useState(false);
+    const [checklist, setChecklist] = useState<any[]>([]);
+    const [newChecklistItem, setNewChecklistItem] = useState('');
+    const [showChecklist, setShowChecklist] = useState(false);
 
     useEffect(() => {
         setIsStuck(task?.is_stuck || false);
@@ -47,14 +50,17 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         if (!task) return;
         setLoading(true);
         try {
-            const [refRes, resRes, msgRes] = await Promise.all([
+            const [refRes, resRes, msgRes, checkRes] = await Promise.all([
                 api.get<TaskReflection[]>(`/tasks/${task.id}/reflections`).catch(() => []),
                 api.get<ProjectResource[]>(`/tasks/${task.id}/resources`).catch(() => []),
-                api.get<TaskMessage[]>(`/tasks/${task.id}/messages`).catch(() => [])
+                api.get<TaskMessage[]>(`/tasks/${task.id}/messages`).catch(() => []),
+                api.get<any[]>(`/tasks/${task.id}/checklist`).catch(() => [])
             ]);
             setReflections(refRes || []);
             setResources(resRes || []);
             setMessages(msgRes || []);
+            setChecklist(checkRes || []);
+            setShowChecklist((checkRes || []).length > 0);
         } catch (error) {
             console.error(error);
         } finally {
@@ -166,6 +172,41 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         }
     };
 
+    const handleAddChecklistItem = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!newChecklistItem.trim() || !task || !canEdit) return;
+        try {
+            const newItem = await api.post(`/tasks/${task.id}/checklist`, { content: newChecklistItem.trim() });
+            setChecklist([...checklist, newItem]);
+            setNewChecklistItem('');
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to add checklist item.", "error");
+        }
+    };
+
+    const handleToggleChecklistItem = async (item: any) => {
+        if (!canEdit) return;
+        try {
+            const updated = await api.patch(`/checklist-items/${item.id}`, { is_completed: !item.is_completed });
+            setChecklist(checklist.map(i => i.id === item.id ? updated : i));
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to update item.", "error");
+        }
+    };
+
+    const handleDeleteChecklistItem = async (itemId: number) => {
+        if (!canEdit) return;
+        try {
+            await api.delete(`/checklist-items/${itemId}`);
+            setChecklist(checklist.filter(i => i.id !== itemId));
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to delete item.", "error");
+        }
+    };
+
     if (!isOpen || !task) return null;
 
     const StatusIcon = task.status === 'done' ? CheckCircle2 : (task.status === 'doing' ? Clock : AlertCircle);
@@ -268,6 +309,113 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     <span className="text-sm text-gray-500">Dependencies</span>
                                     <span className="font-medium text-gray-900">{task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length} tasks` : 'None'}</span>
                                 </div>
+                            </div>
+
+                            {/* Checklist Section */}
+                            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                        <ListChecks className="w-4 h-4 text-indigo-500" />
+                                        Task Checklist
+                                    </h3>
+                                    {!showChecklist && canEdit && (
+                                        <button
+                                            onClick={() => setShowChecklist(true)}
+                                            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                                        >
+                                            <Plus className="w-3 h-3" /> Add Checklist
+                                        </button>
+                                    )}
+                                </div>
+
+                                {showChecklist ? (
+                                    <div className="space-y-3">
+                                        {checklist.length > 0 && (
+                                            <div className="mb-4">
+                                                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                                    <span>{checklist.filter(i => i.is_completed).length} / {checklist.length} complete</span>
+                                                    <span>{Math.round((checklist.filter(i => i.is_completed).length / checklist.length) * 100)}%</span>
+                                                </div>
+                                                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="bg-indigo-500 h-full transition-all duration-500"
+                                                        style={{ width: `${(checklist.filter(i => i.is_completed).length / checklist.length) * 100}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-2">
+                                            {checklist.map(item => (
+                                                <div key={item.id} className="group flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                                                    <button
+                                                        onClick={() => handleToggleChecklistItem(item)}
+                                                        disabled={!canEdit}
+                                                        className={`transition-colors ${item.is_completed ? 'text-green-500' : 'text-gray-300 group-hover:text-gray-400'} ${!canEdit ? 'cursor-default' : ''}`}
+                                                    >
+                                                        {item.is_completed ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+                                                    </button>
+                                                    <span className={`flex-1 text-sm ${item.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                                                        {item.content}
+                                                    </span>
+                                                    {canEdit && (
+                                                        <button
+                                                            onClick={() => handleDeleteChecklistItem(item.id)}
+                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {canEdit && (
+                                            <form onSubmit={handleAddChecklistItem} className="mt-4">
+                                                <input
+                                                    type="text"
+                                                    value={newChecklistItem}
+                                                    onChange={(e) => setNewChecklistItem(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && newChecklistItem.trim()) {
+                                                            handleAddChecklistItem();
+                                                        }
+                                                    }}
+                                                    placeholder="Add a step..."
+                                                    className="w-full text-sm p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                                />
+                                                <p className="text-[10px] text-gray-400 mt-1 italic">Press Enter to add and keep typing</p>
+                                            </form>
+                                        )}
+
+                                        {checklist.length > 0 && checklist.every(i => i.is_completed) && task.status !== 'done' && (
+                                            <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-100 animate-in fade-in slide-in-from-top-2">
+                                                <p className="text-xs text-green-700 font-medium flex items-center gap-2">
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                    All steps complete! Ready to move this task to Done?
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {checklist.length > 8 && (
+                                            <p className="text-[10px] text-amber-600 mt-2 italic">
+                                                Try keeping this to just the key steps.
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                                        <p className="text-xs text-gray-500 mb-2">Helpful for breaking work into smaller pieces.</p>
+                                        {canEdit && (
+                                            <button
+                                                onClick={() => setShowChecklist(true)}
+                                                className="text-xs font-bold uppercase tracking-wider bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg shadow-sm transition-all"
+                                            >
+                                                Start a Checklist
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Stuck State Toggle */}

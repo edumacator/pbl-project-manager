@@ -2,7 +2,7 @@ import React from 'react';
 import { Task } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { Plus } from 'lucide-react';
+import { Plus, ListChecks } from 'lucide-react';
 
 interface TeamKanbanProps {
     tasks: Task[];
@@ -86,6 +86,15 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                                             >
                                                 Claim Task
                                             </button>
+                                        </div>
+                                    )}
+
+                                    {task.checklist_summary && task.checklist_summary.total > 0 && (
+                                        <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-gray-500">
+                                            <ListChecks className={`w-3 h-3 ${task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-500' : 'text-gray-400'}`} />
+                                            <span className={task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-600' : ''}>
+                                                {task.checklist_summary.completed}/{task.checklist_summary.total}
+                                            </span>
                                         </div>
                                     )}
                                 </div>

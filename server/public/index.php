@@ -98,13 +98,14 @@ try {
     $taskReflectionRepo = new \App\Repositories\MySQL\TaskReflectionRepository();
     $resourceRepo = new \App\Repositories\MySQL\ProjectResourceRepository();
     $taskMessageRepo = new \App\Repositories\MySQL\TaskMessageRepository();
+    $checklistRepo = new \App\Repositories\MySQL\TaskChecklistItemRepository(\App\Repositories\MySQL\Database::getConnection());
     $qnaRepo = new ProjectQnaRepository(\App\Repositories\MySQL\Database::getConnection());
 
     $reviewService = new ReviewService($reviewRepo, new FeedbackRepository(\App\Repositories\MySQL\Database::getConnection()), $projectRepo, $taskRepo, $auditRepo);
     $authService = new AuthService($userRepo);
     $projectService = new ProjectService($projectRepo, $checkpointRepo);
     $teamService = new TeamService($teamRepo);
-    $taskService = new TaskService($taskRepo, $auditRepo, $reviewService, $taskReflectionRepo, $resourceRepo);
+    $taskService = new TaskService($taskRepo, $auditRepo, $reviewService, $taskReflectionRepo, $resourceRepo, $checklistRepo, $userRepo);
     $checkpointService = new CheckpointService($checkpointRepo, $reflectionRepo);
     $classService = new ClassService($classRepo, $userRepo);
     $classService->setProjectService($projectService);
@@ -721,6 +722,72 @@ if (preg_match('#^/api/v1/tasks/(\d+)/messages$#', $uri, $matches)) {
             $msg->createdAt = date('Y-m-d H:i:s');
 
             echo json_encode(['ok' => true, 'data' => $msg]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+}
+
+// Task Checklist
+if (preg_match('#^/api/v1/tasks/(\d+)/checklist$#', $uri, $matches)) {
+    $taskId = (int) $matches[1];
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        try {
+            $items = $taskService->getChecklistItems($taskId);
+            echo json_encode(['ok' => true, 'data' => $items]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$currentUser) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+            exit;
+        }
+        try {
+            $item = $taskService->addChecklistItem($taskId, $input['content'] ?? '', $currentUser->id);
+            echo json_encode(['ok' => true, 'data' => $item]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+}
+
+if (preg_match('#^/api/v1/checklist-items/(\d+)$#', $uri, $matches)) {
+    $itemId = (int) $matches[1];
+    if ($_SERVER['REQUEST_METHOD'] === 'PATCH' || $_SERVER['REQUEST_METHOD'] === 'PUT') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$currentUser) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+            exit;
+        }
+        try {
+            $item = $taskService->updateChecklistItem($itemId, $input, $currentUser->id);
+            echo json_encode(['ok' => true, 'data' => $item]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        if (!$currentUser) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+            exit;
+        }
+        try {
+            $success = $taskService->deleteChecklistItem($itemId, $currentUser->id);
+            echo json_encode(['ok' => true, 'deleted' => $success]);
         } catch (\Exception $e) {
             http_response_code(500);
             echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
