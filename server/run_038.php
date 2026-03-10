@@ -1,6 +1,10 @@
 <?php
-require_once __DIR__ . '/src/repositories/mysql/Database.php';
+require_once __DIR__ . '/src/autoload.php';
+use App\Env;
 use App\Repositories\MySQL\Database;
+
+// Load Env
+Env::load(__DIR__ . '/.env');
 
 try {
     $pdo = Database::getConnection();
