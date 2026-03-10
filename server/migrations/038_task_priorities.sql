@@ -1,6 +1,8 @@
--- Migration 038: Update task priorities to P1/P2/P3
--- Data migration: high -> P1, medium -> P2, low -> P3
--- 1. Update existing values
+-- Migration 038: Update task priorities to P1/P2/P3 safely
+-- 1. Expand ENUM to include both old and new values
+ALTER TABLE tasks
+MODIFY COLUMN priority ENUM('high', 'medium', 'low', 'P1', 'P2', 'P3') DEFAULT 'medium';
+-- 2. Update existing values
 UPDATE tasks
 SET priority = 'P1'
 WHERE priority = 'high';
@@ -11,7 +13,6 @@ WHERE priority = 'medium'
 UPDATE tasks
 SET priority = 'P3'
 WHERE priority = 'low';
--- 2. Modify the column to the new ENUM and set default
--- Note: In MySQL, if we modify an ENUM to a new one that contains all existing values (which we've normalized above), it should be smooth.
+-- 3. Shrink ENUM to only new values and set new default
 ALTER TABLE tasks
 MODIFY COLUMN priority ENUM('P1', 'P2', 'P3') DEFAULT 'P3';
