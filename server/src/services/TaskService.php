@@ -33,6 +33,7 @@ class TaskService
         $this->resourceRepo = $resourceRepo;
         $this->checklistRepo = $checklistRepo;
         $this->userRepo = $userRepo;
+    }
 
     public function addReflection(int $taskId, int $userId, string $content, string $transitionType = 'start_work'): \App\Domain\TaskReflection
     {
