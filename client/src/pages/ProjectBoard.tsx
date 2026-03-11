@@ -71,6 +71,16 @@ const KanbanColumn: React.FC<{
                                 <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded h-fit">Critique Req.</span>
                             )}
                         </div>
+                        {task.priority && (
+                            <div className="mb-2">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${task.priority === 'P1' ? 'bg-red-50 text-red-600 border-red-100' :
+                                    task.priority === 'P2' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                        'bg-gray-50 text-gray-500 border-gray-100'
+                                    }`}>
+                                    {task.priority}
+                                </span>
+                            </div>
+                        )}
                         {task.description && <div className="text-gray-500 text-xs mb-3 line-clamp-2">{task.description}</div>}
 
                         <div className="flex items-center justify-between text-xs text-gray-400 mt-2">
@@ -735,7 +745,7 @@ const ProjectBoard: React.FC = () => {
                                                         <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-indigo-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
                                                             <ExternalLink className="w-3.5 h-3.5" />
                                                         </a>
-                                                        {(user?.role === 'teacher' || res.user_id === user?.id) && (
+                                                        {(user?.role === 'teacher' || user?.role === 'admin' || res.user_id === user?.id) && (
                                                             <>
                                                                 <button onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }} className="text-gray-400 hover:text-emerald-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
                                                                     <Edit2 className="w-3.5 h-3.5" />

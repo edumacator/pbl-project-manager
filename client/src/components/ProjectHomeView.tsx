@@ -58,7 +58,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
     // Editor state
     const [isSavingDesc, setIsSavingDesc] = useState(false);
     const [isEditingMode, setIsEditingMode] = useState(false);
-    const isTeacher = currentUser?.role === 'teacher';
+    const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin';
 
     const editor = useEditor({
         extensions: [StarterKit],

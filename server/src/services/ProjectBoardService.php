@@ -41,9 +41,9 @@ class ProjectBoardService
             }
         }
 
-        if (!$studentTeam) {
-            throw new \Exception("Access Denied: You are not a member of any team in this project.", 403);
-        }
+        // if (!$studentTeam) {
+        //     throw new \Exception("Access Denied: You are not a member of any team in this project.", 403);
+        // }
 
         // 2. Get Project Details
         $project = $this->projectRepo->findById($projectId);
@@ -52,7 +52,7 @@ class ProjectBoardService
         }
 
         // 3. Get Team Tasks
-        $tasks = $this->taskRepo->findByProjectId($projectId, $studentTeam->id);
+        $tasks = $studentTeam ? $this->taskRepo->findByProjectId($projectId, $studentTeam->id) : [];
 
         // 4. Get Milestones/Checkpoints
         // We need class-specific checkpoints too.

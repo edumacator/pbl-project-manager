@@ -42,7 +42,7 @@ class Task implements JsonSerializable
         ?string $startDate = null,
         ?int $durationDays = 1,
         bool $isStuck = false, // New
-        string $priority = 'medium',
+        string $priority = 'P3',
         ?string $updatedAt = null,
         ?string $assigneeName = null,
         ?string $createdAt = null,

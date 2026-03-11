@@ -133,36 +133,46 @@ const TeacherDashboard: React.FC = () => {
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {loading ? <div>Loading...</div> : classes.map(cls => (
-                            <div key={cls.id} className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-medium text-gray-900">{cls.name}</h3>
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
-                                        <button
-                                            onClick={() => setSelectedClassForMilestones(cls)}
-                                            className="text-gray-400 hover:text-indigo-500"
-                                            title="Manage Milestones"
-                                        >
-                                            <Calendar className="w-4 h-4" />
-                                        </button>
-                                        {cls.deleted_at ? (
-                                            <button onClick={() => handleRestoreClass(cls.id)} className="text-gray-400 hover:text-green-500" title="Restore Class">
-                                                <Plus className="w-4 h-4" />
+                        {loading ? (
+                            <div className="text-center py-8 text-gray-500 italic">Loading classes...</div>
+                        ) : classes.length === 0 ? (
+                            <div className="text-center py-8 text-gray-400 italic bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                                <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                <p>No active classes found.</p>
+                                <p className="text-[10px] mt-1">Try "Show Archived" if they were deleted.</p>
+                            </div>
+                        ) : (
+                            classes.map(cls => (
+                                <div key={cls.id} className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="font-medium text-gray-900">{cls.name}</h3>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
+                                            <button
+                                                onClick={() => setSelectedClassForMilestones(cls)}
+                                                className="text-gray-400 hover:text-indigo-500"
+                                                title="Manage Milestones"
+                                            >
+                                                <Calendar className="w-4 h-4" />
                                             </button>
-                                        ) : (
-                                            <button onClick={() => handleDeleteClass(cls.id)} className="text-gray-400 hover:text-red-500" title="Archive Class">
-                                                <Archive className="w-4 h-4" />
-                                            </button>
-                                        )}
+                                            {cls.deleted_at ? (
+                                                <button onClick={() => handleRestoreClass(cls.id)} className="text-gray-400 hover:text-green-500" title="Restore Class">
+                                                    <Plus className="w-4 h-4" />
+                                                </button>
+                                            ) : (
+                                                <button onClick={() => handleDeleteClass(cls.id)} className="text-gray-400 hover:text-red-500" title="Archive Class">
+                                                    <Archive className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <Link to={`/classes/${cls.id}`} className="block w-full text-center py-1.5 bg-indigo-50 text-indigo-700 rounded-md text-sm font-medium hover:bg-indigo-100">
+                                            Open Class
+                                        </Link>
                                     </div>
                                 </div>
-                                <div className="mt-4">
-                                    <Link to={`/classes/${cls.id}`} className="block w-full text-center py-1.5 bg-indigo-50 text-indigo-700 rounded-md text-sm font-medium hover:bg-indigo-100">
-                                        Open Class
-                                    </Link>
-                                </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -177,46 +187,56 @@ const TeacherDashboard: React.FC = () => {
                         </Link>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {loading ? <div>Loading...</div> : projects.map(proj => (
-                            <div key={proj.id} className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all">
-                                <h3 className="font-medium text-gray-900 mb-1">{proj.title}</h3>
-                                <p className="text-xs text-gray-500 line-clamp-2 mb-3">{proj.driving_question}</p>
+                        {loading ? (
+                            <div className="text-center py-8 text-gray-500 italic">Loading projects...</div>
+                        ) : projects.length === 0 ? (
+                            <div className="text-center py-8 text-gray-400 italic bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                                <Layout className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                <p>No projects found.</p>
+                                <p className="text-[10px] mt-1">Try "Show Archived" if they were deleted.</p>
+                            </div>
+                        ) : (
+                            projects.map(proj => (
+                                <div key={proj.id} className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all">
+                                    <h3 className="font-medium text-gray-900 mb-1">{proj.title}</h3>
+                                    <p className="text-xs text-gray-500 line-clamp-2 mb-3">{proj.driving_question}</p>
 
-                                <div className="space-y-2 mb-3">
-                                    <div className="flex flex-wrap gap-1">
-                                        {proj.classes && proj.classes.length > 0 ? (
-                                            proj.classes.map(c => (
-                                                <span key={c.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                    {c.name}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span className="text-xs text-gray-400 italic">No classes assigned</span>
+                                    <div className="space-y-2 mb-3">
+                                        <div className="flex flex-wrap gap-1">
+                                            {proj.classes && proj.classes.length > 0 ? (
+                                                proj.classes.map(c => (
+                                                    <span key={c.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                        {c.name}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-xs text-gray-400 italic">No classes assigned</span>
+                                            )}
+                                        </div>
+                                        {proj.due_date && (
+                                            <div className="text-xs text-gray-600">
+                                                Due: <span className="font-medium">{new Date(proj.due_date).toLocaleDateString()}</span>
+                                            </div>
                                         )}
                                     </div>
-                                    {proj.due_date && (
-                                        <div className="text-xs text-gray-600">
-                                            Due: <span className="font-medium">{new Date(proj.due_date).toLocaleDateString()}</span>
-                                        </div>
-                                    )}
-                                </div>
 
-                                <div className="flex space-x-2 mt-3">
-                                    <Link to={`/projects/${proj.id}`} className="flex-1 text-center py-1.5 border border-indigo-200 text-indigo-700 rounded-md text-sm font-medium hover:bg-indigo-50">
-                                        Edit / View
-                                    </Link>
-                                    {proj.deleted_at ? (
-                                        <button onClick={() => handleRestoreProject(proj.id)} className="px-3 border border-gray-200 text-gray-400 hover:text-green-500 rounded-md flex items-center justify-center transition-colors" title="Restore Project">
-                                            <Plus className="w-4 h-4" />
-                                        </button>
-                                    ) : (
-                                        <button onClick={() => handleDeleteProject(proj.id)} className="px-3 border border-gray-200 text-gray-400 hover:text-red-500 rounded-md flex items-center justify-center transition-colors" title="Archive Project">
-                                            <Archive className="w-4 h-4" />
-                                        </button>
-                                    )}
+                                    <div className="flex space-x-2 mt-3">
+                                        <Link to={`/projects/${proj.id}`} className="flex-1 text-center py-1.5 border border-indigo-200 text-indigo-700 rounded-md text-sm font-medium hover:bg-indigo-50">
+                                            Edit / View
+                                        </Link>
+                                        {proj.deleted_at ? (
+                                            <button onClick={() => handleRestoreProject(proj.id)} className="px-3 border border-gray-200 text-gray-400 hover:text-green-500 rounded-md flex items-center justify-center transition-colors" title="Restore Project">
+                                                <Plus className="w-4 h-4" />
+                                            </button>
+                                        ) : (
+                                            <button onClick={() => handleDeleteProject(proj.id)} className="px-3 border border-gray-200 text-gray-400 hover:text-red-500 rounded-md flex items-center justify-center transition-colors" title="Archive Project">
+                                                <Archive className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </div>
 

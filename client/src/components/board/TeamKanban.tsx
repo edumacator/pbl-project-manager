@@ -59,7 +59,7 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                                     key={task.id}
                                     draggable={true} // Always draggable so we can intercept the drag attempt and show the error toast
                                     onDragStart={(e) => {
-                                        const canMoveTask = isOwner || user?.role === 'teacher';
+                                        const canMoveTask = isOwner || user?.role === 'teacher' || user?.role === 'admin';
                                         if (canMoveTask) {
                                             e.dataTransfer.setData("taskId", task.id.toString());
                                         } else {
@@ -67,36 +67,44 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                                             addToast("You can only move tasks assigned to you.", 'error');
                                         }
                                     }}
-                                    className={`bg-white p-4 rounded-lg shadow-sm border ${!task.is_completable && column.id !== 'done' ? 'border-l-4 border-l-amber-400 border-y-gray-200 border-r-gray-200' : 'border-gray-200'} ${(isOwner || user?.role === 'teacher') ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:bg-gray-50'} transition-all`}
+                                    className={`bg-white p-4 rounded-lg shadow-sm border ${!task.is_completable && column.id !== 'done' ? 'border-l-4 border-l-amber-400 border-y-gray-200 border-r-gray-200' : 'border-gray-200'} ${(isOwner || user?.role === 'teacher' || user?.role === 'admin') ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:bg-gray-50'} transition-all`}
                                     onClick={() => onTaskClick?.(task)}
                                     title={!task.is_completable ? "Critique Required before Done" : ""}
                                 >
                                     <div className="text-sm font-medium text-gray-900 mb-1">{task.title}</div>
-                                    {task.assignee_id ? (
-                                        <div className="flex items-center justify-end mt-2">
+                                    <div className="flex items-center justify-between mt-2">
+                                        <div className="flex items-center gap-2">
+                                            {task.priority && (
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${task.priority === 'P1' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                                    task.priority === 'P2' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
+                                                        'bg-gray-50 text-gray-500 border border-gray-100'
+                                                    }`}>
+                                                    {task.priority}
+                                                </span>
+                                            )}
+                                            {task.checklist_summary && task.checklist_summary.total > 0 && (
+                                                <div className="flex items-center gap-1 text-[10px] font-medium text-gray-500">
+                                                    <ListChecks className={`w-3 h-3 ${task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-500' : 'text-gray-400'}`} />
+                                                    <span className={task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-600' : ''}>
+                                                        {task.checklist_summary.completed}/{task.checklist_summary.total}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {task.assignee_id ? (
                                             <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-[10px] flex items-center justify-center font-bold" title={task.assignee_name || `User ${task.assignee_id}`}>
                                                 {getInitials(task.assignee_name) || `U${task.assignee_id}`}
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex justify-end mt-2">
+                                        ) : (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onTaskClaim?.(task.id); }}
                                                 className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
                                             >
                                                 Claim Task
                                             </button>
-                                        </div>
-                                    )}
-
-                                    {task.checklist_summary && task.checklist_summary.total > 0 && (
-                                        <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-gray-500">
-                                            <ListChecks className={`w-3 h-3 ${task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-500' : 'text-gray-400'}`} />
-                                            <span className={task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-600' : ''}>
-                                                {task.checklist_summary.completed}/{task.checklist_summary.total}
-                                            </span>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}

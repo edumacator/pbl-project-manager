@@ -4,7 +4,7 @@ export interface User {
     first_name: string;
     last_name: string;
     email: string;
-    role: 'teacher' | 'student';
+    role: 'teacher' | 'student' | 'admin';
 }
 
 export interface Class {
@@ -58,6 +58,7 @@ export interface Task {
     created_at?: string;
     dependencies?: number[];
     start_date?: string;
+    priority?: 'P1' | 'P2' | 'P3';
     end_date?: string; // Added
     is_stuck?: boolean; // Added
     duration_days?: number;

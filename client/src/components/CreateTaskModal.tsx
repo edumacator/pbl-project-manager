@@ -54,6 +54,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
     const [teamId, setTeamId] = useState<number | ''>(''); // Track selected team
     const [dueDate, setDueDate] = useState('');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [priority, setPriority] = useState<'P1' | 'P2' | 'P3'>('P3');
     const [selectedDependencies, setSelectedDependencies] = useState<number[]>([]);
     const [loading, setLoading] = useState(false);
     const { addToast } = useToast();
@@ -69,6 +70,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
                 setTeamId(taskToEdit.team_id || defaultTeamId || '');
                 setDueDate(taskToEdit.due_date ? taskToEdit.due_date.substring(0, 10) : '');
                 setStartDate(taskToEdit.start_date ? taskToEdit.start_date.substring(0, 10) : new Date().toISOString().split('T')[0]);
+                setPriority(taskToEdit.priority || 'P3');
                 setSelectedDependencies(taskToEdit.dependencies?.map(d => typeof d === 'object' ? (d as any).id : Number(d)) || []);
             } else {
                 setTitle('');
@@ -78,6 +80,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
                 setTeamId(defaultTeamId || '');
                 setDueDate('');
                 setStartDate(new Date().toISOString().split('T')[0]);
+                setPriority('P3');
                 setSelectedDependencies([]);
             }
         }
@@ -116,6 +119,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
                 team_id: teamId || null,
                 due_date: dueDate || null,
                 start_date: startDate || null,
+                priority,
                 dependencies: selectedDependencies
             };
 
@@ -239,6 +243,22 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
                                 onChange={e => setDueDate(e.target.value)}
                                 className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                            <select
+                                value={priority}
+                                onChange={e => setPriority(e.target.value as any)}
+                                className={`w-full px-4 py-2 rounded-lg border focus:ring-2 outline-none transition-all ${priority === 'P1' ? 'border-red-300 text-red-700 bg-red-50 focus:ring-red-500' :
+                                    priority === 'P2' ? 'border-orange-300 text-orange-700 bg-orange-50 focus:ring-orange-500' :
+                                        'border-gray-300 text-gray-700 focus:ring-indigo-500'
+                                    }`}
+                            >
+                                <option value="P1">P1 - Critical</option>
+                                <option value="P2">P2 - High</option>
+                                <option value="P3">P3 - Normal</option>
+                            </select>
                         </div>
                     </div>
 
