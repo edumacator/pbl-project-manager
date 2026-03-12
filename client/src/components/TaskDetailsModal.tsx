@@ -37,12 +37,14 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const [checklist, setChecklist] = useState<any[]>([]);
     const [newChecklistItem, setNewChecklistItem] = useState('');
     const [showChecklist, setShowChecklist] = useState(false);
+    const [localPriority, setLocalPriority] = useState<'P1' | 'P2' | 'P3'>(task?.priority || 'P3');
 
     useEffect(() => {
         setIsStuck(task?.is_stuck || false);
+        setLocalPriority(task?.priority || 'P3');
     }, [task]);
 
-    const isTeacher = user?.role === 'teacher';
+    const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
     const isOwner = task?.assignee_id === user?.id;
     const canEdit = isTeacher || isOwner;
 
@@ -207,6 +209,20 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         }
     };
 
+    const handlePriorityChange = async (newPriority: 'P1' | 'P2' | 'P3') => {
+        if (!task || !canEdit) return;
+        setLocalPriority(newPriority);
+        try {
+            const updated = await api.updateTask(task.id, { priority: newPriority });
+            if (onEditTask) onEditTask(updated.task || { ...task, priority: newPriority });
+            addToast(`Priority updated to ${newPriority}`, "success");
+        } catch (err) {
+            console.error(err);
+            setLocalPriority(task.priority || 'P3');
+            addToast("Failed to update priority.", "error");
+        }
+    };
+
     if (!isOpen || !task) return null;
 
     const StatusIcon = task.status === 'done' ? CheckCircle2 : (task.status === 'doing' ? Clock : AlertCircle);
@@ -308,6 +324,30 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                 <div className="bg-white p-4 justify-between flex rounded-xl border border-gray-100 shadow-sm">
                                     <span className="text-sm text-gray-500">Dependencies</span>
                                     <span className="font-medium text-gray-900">{task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length} tasks` : 'None'}</span>
+                                </div>
+                                <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
+                                    <span className="text-sm text-gray-500">Priority</span>
+                                    {canEdit ? (
+                                        <select
+                                            value={localPriority}
+                                            onChange={(e) => handlePriorityChange(e.target.value as any)}
+                                            className={`text-sm font-bold px-2 py-1 rounded border transition-colors ${localPriority === 'P1' ? 'border-red-200 bg-red-50 text-red-700' :
+                                                localPriority === 'P2' ? 'border-orange-200 bg-orange-50 text-orange-700' :
+                                                    'border-gray-200 bg-gray-50 text-gray-700'
+                                                }`}
+                                        >
+                                            <option value="P1">P1 - Critical</option>
+                                            <option value="P2">P2 - High</option>
+                                            <option value="P3">P3 - Normal</option>
+                                        </select>
+                                    ) : (
+                                        <span className={`text-sm font-bold px-2 py-1 rounded ${localPriority === 'P1' ? 'bg-red-50 text-red-700' :
+                                            localPriority === 'P2' ? 'bg-orange-50 text-orange-700' :
+                                                'bg-gray-50 text-gray-700'
+                                            }`}>
+                                            {localPriority}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 

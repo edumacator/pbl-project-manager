@@ -18,8 +18,8 @@ class TaskRepository implements TaskRepositoryInterface
     public function create(Task $task): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, due_date, dependencies, start_date, duration_days, is_stuck, sort_order)
-            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :due_date, :dependencies, :start_date, :duration_days, :is_stuck, :sort_order)
+            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, due_date, dependencies, start_date, duration_days, is_stuck, priority, sort_order)
+            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :due_date, :dependencies, :start_date, :duration_days, :is_stuck, :priority, :sort_order)
         ");
 
         $stmt->execute([
@@ -30,11 +30,12 @@ class TaskRepository implements TaskRepositoryInterface
             ':assignee_id' => $task->assigneeId,
             ':team_id' => $task->teamId,
             ':due_date' => $task->dueDate,
-            'dependencies' => $task->dependencies ? json_encode($task->dependencies) : null,
-            'start_date' => $task->startDate ?? null,
-            'duration_days' => $task->durationDays ?? 1,
-            'is_stuck' => $task->isStuck ? 1 : 0,
-            'sort_order' => $task->sortOrder
+            ':dependencies' => $task->dependencies ? json_encode($task->dependencies) : null,
+            ':start_date' => $task->startDate ?? null,
+            ':duration_days' => $task->durationDays ?? 1,
+            ':is_stuck' => $task->isStuck ? 1 : 0,
+            ':priority' => $task->priority,
+            ':sort_order' => $task->sortOrder
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -118,7 +119,7 @@ class TaskRepository implements TaskRepositoryInterface
             $row['start_date'] ?? null,
             $row['duration_days'] ? (int) $row['duration_days'] : 1,
             (bool) ($row['is_stuck'] ?? 0),
-            $row['priority'] ?? 'medium',
+            $row['priority'] ?? 'P3',
             $row['updated_at'] ?? null,
             $row['assignee_name'] ?? null,
             $row['created_at'] ?? null,

@@ -509,6 +509,14 @@ const TimelineView: React.FC<TimelineViewProps> = ({ teamId, projectProp, onAddT
                                     >
                                         <div className="flex items-center gap-2 overflow-hidden mr-2 flex-grow" onClick={() => onTaskClick?.(task)}>
                                             <span className="text-gray-400 cursor-grab shrink-0">⋮⋮</span>
+                                            {task.priority && (
+                                                <span className={`text-[10px] font-extrabold shrink-0 ${task.priority === 'P1' ? 'text-red-600' :
+                                                    task.priority === 'P2' ? 'text-orange-600' :
+                                                        'text-gray-400'
+                                                    }`}>
+                                                    [{task.priority}]
+                                                </span>
+                                            )}
                                             <span className="truncate text-sm font-medium text-gray-700">{task.title}</span>
                                         </div>
                                         {isOverdue && <span title="Overdue" className="text-red-500 ml-1 text-xs font-bold shrink-0">⚠️</span>}

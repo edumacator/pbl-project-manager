@@ -177,7 +177,7 @@ export const ProjectHomeModal: React.FC<ProjectHomeModalProps> = ({ isOpen, onCl
 
                     {activeTab === 'resources' && (
                         <div className="space-y-6">
-                            {currentUser?.role === 'teacher' && (
+                            {(currentUser?.role === 'teacher' || currentUser?.role === 'admin') && (
                                 <form onSubmit={handleAddResource} className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
                                     <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Plus className="w-4 h-4" /> Add Shared Resource</h3>
                                     <div className="flex gap-3">
@@ -281,7 +281,7 @@ export const ProjectHomeModal: React.FC<ProjectHomeModalProps> = ({ isOpen, onCl
                                                                 <p className="text-xs text-gray-500 mt-2">Answered by {q.answered_by_name || 'Teacher'}</p>
                                                             </div>
                                                         </div>
-                                                    ) : currentUser?.role === 'teacher' ? (
+                                                    ) : (currentUser?.role === 'teacher' || currentUser?.role === 'admin') ? (
                                                         <div>
                                                             {answeringId === q.id ? (
                                                                 <div>

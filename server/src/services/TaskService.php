@@ -254,7 +254,7 @@ class TaskService
             $startDate,
             $duration,
             false, // isStuck
-            $data['priority'] ?? 'medium', // priority
+            $data['priority'] ?? 'P3', // priority
             null, // updatedAt
             null, // assigneeName
             null, // createdAt

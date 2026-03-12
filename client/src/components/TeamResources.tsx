@@ -23,7 +23,7 @@ interface TeamResourcesProps {
 
 export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId }) => {
     const { user } = useAuth();
-    const isTeacher = user?.role === 'teacher';
+    const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
     const [teamResources, setTeamResources] = useState<ProjectResource[]>([]);
     const [projectResources, setProjectResources] = useState<ProjectResource[]>([]);

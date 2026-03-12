@@ -68,8 +68,9 @@ export const StudentProjectBoard: React.FC = () => {
     };
 
     const handleTaskClaim = async (taskId: number) => {
+        if (!user) return;
         try {
-            await api.updateTask(taskId, { assignee_id: 2 }); // Hardcoded assigned to student "Alice" (ID 2)
+            await api.updateTask(taskId, { assignee_id: user.id });
             loadTeamContext();
             setTimelineRefresh(prev => prev + 1);
         } catch (err) {
@@ -282,38 +283,57 @@ export const StudentProjectBoard: React.FC = () => {
                         <ProjectHomeView
                             project={data.project}
                             currentUser={user}
-                            teams={[data.team]}
-                            tasks={data.tasks}
+                            teams={data.team ? [data.team] : []}
+                            tasks={data.tasks || []}
                             onTeamSelect={() => setActiveTab('board')}
                             onProjectUpdate={() => { }}
                         />
                     )}
                     {activeTab === 'board' && (
-                        <TeamKanban
-                            tasks={data.tasks}
-                            onTaskMove={handleTaskMove}
-                            onTaskClaim={handleTaskClaim}
-                            onTaskClick={(task) => setSelectedTask(task)}
-                            onTaskAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
-                        />
+                        data.team ? (
+                            <TeamKanban
+                                tasks={data.tasks}
+                                onTaskMove={handleTaskMove}
+                                onTaskClaim={handleTaskClaim}
+                                onTaskClick={(task) => setSelectedTask(task)}
+                                onTaskAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
+                            />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8 text-center">
+                                <LayoutIcon className="w-16 h-16 mb-4 opacity-20" />
+                                <h2 className="text-xl font-semibold mb-2">You haven't joined a team yet</h2>
+                                <p>Once your teacher assigns you to a team, you'll be able to manage tasks here.</p>
+                            </div>
+                        )
                     )}
                     {activeTab === 'timeline' && (
-                        <div className="h-full p-4 overflow-auto">
-                            <TimelineView
-                                teamId={data.team.id}
-                                onTaskClick={(task) => setSelectedTask(task)}
-                                onAddTask={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
-                                refreshTrigger={timelineRefresh}
-                            />
-                        </div>
+                        data.team ? (
+                            <div className="h-full p-4 overflow-auto">
+                                <TimelineView
+                                    teamId={data.team.id}
+                                    onTaskClick={(task) => setSelectedTask(task)}
+                                    onAddTask={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
+                                    refreshTrigger={timelineRefresh}
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8 text-center">
+                                <Calendar className="w-16 h-16 mb-4 opacity-20" />
+                                <h2 className="text-xl font-semibold mb-2">Timeline Unavailable</h2>
+                                <p>The project timeline will be available once you are part of a team.</p>
+                            </div>
+                        )
                     )}
                     {activeTab === 'resources' && (
                         <div className="h-full overflow-hidden bg-white">
-                            <TeamResources teamId={data.team.id} projectId={data.project.id} />
+                            <TeamResources teamId={data.team?.id} projectId={data.project.id} />
                         </div>
                     )}
                 </div>
-                <TeamSidebar teamName={data.team.name} members={data.team.members} />
+                <TeamSidebar 
+                    teamName={data.team?.name || 'Joining Team...'} 
+                    members={data.team?.members || []} 
+                />
             </div>
 
             <TaskDetailsModal
