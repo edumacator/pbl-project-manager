@@ -3,6 +3,7 @@ import { Task, Project } from '../types';
 import { X, Save, Calendar, Link as LinkIcon } from 'lucide-react';
 import { api } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CreateTaskModalProps {
     project: Project;
@@ -58,6 +59,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
     const [selectedDependencies, setSelectedDependencies] = useState<number[]>([]);
     const [loading, setLoading] = useState(false);
     const { addToast } = useToast();
+    const { user } = useAuth();
 
     // Reset form when opening
     useEffect(() => {
@@ -185,9 +187,16 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
                                 className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                             >
                                 <option value="">Unassigned</option>
-                                {availableMembers && availableMembers.map(m => (
-                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
+                                {(() => {
+                                    if (user?.role === 'student') {
+                                        return availableMembers?.filter(m => m.id === user.id).map(m => (
+                                            <option key={m.id} value={m.id}>{m.name} (Myself)</option>
+                                        ));
+                                    }
+                                    return availableMembers?.map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ));
+                                })()}
                             </select>
                         </div>
 

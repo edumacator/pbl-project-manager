@@ -68,8 +68,9 @@ export const StudentProjectBoard: React.FC = () => {
     };
 
     const handleTaskClaim = async (taskId: number) => {
+        if (!user) return;
         try {
-            await api.updateTask(taskId, { assignee_id: 2 }); // Hardcoded assigned to student "Alice" (ID 2)
+            await api.updateTask(taskId, { assignee_id: user.id });
             loadTeamContext();
             setTimelineRefresh(prev => prev + 1);
         } catch (err) {
