@@ -122,4 +122,19 @@ class TeamRepository implements TeamRepositoryInterface
         $stmt = $this->pdo->prepare("DELETE FROM teams WHERE id = :id");
         return $stmt->execute([':id' => $id]);
     }
+
+    public function findByUserId(int $userId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT t.*, c.name as class_name 
+            FROM teams t
+            JOIN team_members tm ON t.id = tm.team_id
+            LEFT JOIN classes c ON t.class_id = c.id
+            WHERE tm.user_id = :user_id
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $rows = $stmt->fetchAll();
+
+        return array_map([$this, 'mapRowToTeam'], $rows);
+    }
 }

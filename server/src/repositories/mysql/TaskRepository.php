@@ -53,9 +53,10 @@ class TaskRepository implements TaskRepositoryInterface
     public function findByProjectId(int $projectId, ?int $teamId = null, bool $includeDeleted = false): array
     {
         $sql = "
-            SELECT t.*, u.name as assignee_name
+            SELECT t.*, u.name as assignee_name, tm.name as team_name
             FROM tasks t
             LEFT JOIN users u ON t.assignee_id = u.id
+            LEFT JOIN teams tm ON t.team_id = tm.id
             WHERE t.project_id = :project_id
         ";
         $params = [':project_id' => $projectId];
@@ -122,6 +123,7 @@ class TaskRepository implements TaskRepositoryInterface
             $row['priority'] ?? 'P3',
             $row['updated_at'] ?? null,
             $row['assignee_name'] ?? null,
+            $row['team_name'] ?? null,
             $row['created_at'] ?? null,
             $row['deleted_at'] ?? null,
             (int) ($row['sort_order'] ?? 0)
@@ -138,6 +140,27 @@ class TaskRepository implements TaskRepositoryInterface
     {
         $stmt = $this->pdo->prepare("UPDATE tasks SET deleted_at = NULL WHERE id = :id");
         return $stmt->execute([':id' => $id]);
+    }
+
+    public function findByAssigneeId(int $assigneeId, bool $includeDeleted = false): array
+    {
+        $sql = "
+            SELECT t.*, u.name as assignee_name, tm.name as team_name
+            FROM tasks t
+            LEFT JOIN users u ON t.assignee_id = u.id
+            LEFT JOIN teams tm ON t.team_id = tm.id
+            WHERE t.assignee_id = :assignee_id
+        ";
+        if (!$includeDeleted) {
+            $sql .= " AND t.deleted_at IS NULL";
+        }
+        $sql .= " ORDER BY t.due_date ASC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':assignee_id' => $assigneeId]);
+        $rows = $stmt->fetchAll();
+
+        return array_map([$this, 'mapRowToTask'], $rows);
     }
 
     public function addDependency(int $taskId, int $dependsOnId): bool

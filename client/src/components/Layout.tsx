@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, CheckSquare, LogOut, Plus, Users, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, CheckSquare, LogOut, Plus, Users, ShieldCheck, Calendar as CalendarIcon } from 'lucide-react';
 import { api } from '../api/client';
 import { Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -67,6 +67,10 @@ const Layout: React.FC = () => {
                                 <Users className="w-5 h-5 mr-3" />
                                 Student Detail
                             </Link>
+                            <Link to="/calendar" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                <CalendarIcon className="w-5 h-5 mr-3" />
+                                Calendar
+                            </Link>
                         </>
                     )}
                     {(user?.role as any) === 'admin' && (
@@ -83,14 +87,24 @@ const Layout: React.FC = () => {
                                 <ShieldCheck className="w-5 h-5 mr-3" />
                                 Admin Dashboard
                             </Link>
+                            <Link to="/calendar" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                <CalendarIcon className="w-5 h-5 mr-3" />
+                                Calendar
+                            </Link>
                         </>
                     )}
 
                     {user?.role === 'student' && (
-                        <Link to="/student/today" className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/student/today' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
-                            <CheckSquare className="w-5 h-5 mr-3" />
-                            Student Today
-                        </Link>
+                        <>
+                            <Link to="/student/today" className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/student/today' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                <CheckSquare className="w-5 h-5 mr-3" />
+                                Student Today
+                            </Link>
+                            <Link to="/calendar" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                <CalendarIcon className="w-5 h-5 mr-3" />
+                                Calendar
+                            </Link>
+                        </>
                     )}
 
                     <div className="pt-4 mt-4 border-t border-gray-100">
