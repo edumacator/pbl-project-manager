@@ -153,7 +153,7 @@ const ProjectBoard: React.FC = () => {
 
     // Critique Modal State
     const [isCritiqueModalOpen, setIsCritiqueModalOpen] = useState(false);
-    const [critiqueTask, setCritiqueTask] = useState<Task | null>(null);
+    const [critiqueTask] = useState<Task | null>(null);
 
     // Task Details Modal State
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -342,7 +342,7 @@ const ProjectBoard: React.FC = () => {
         }
     };
 
-    const handleEditResourceClick = (res: any) => {
+    const handleEditResourceClick = (_res: any) => {
         // We'll need a modal or direct navigation for this, 
         // passing for now as Teacher ProjectLibrary doesn't currently wire up an Edit Modal explicitly like TeamResources does.
         // Usually, the teacher navigates to the team to edit, but we can implement a quick path later if requested.
@@ -629,6 +629,10 @@ const ProjectBoard: React.FC = () => {
                         onClose={() => setSelectedTask(null)}
                         task={selectedTask}
                         project={project}
+                        onTaskUpdate={(updatedTask) => {
+                            setSelectedTask(updatedTask);
+                            fetchTasks(selectedTeamId);
+                        }}
                         onEditTask={(t) => {
                             setSelectedTask(null);
                             setTaskToEdit(t);

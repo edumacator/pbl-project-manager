@@ -347,7 +347,10 @@ export const StudentProjectBoard: React.FC = () => {
                 }}
                 task={selectedTask}
                 project={data.project}
-                onTaskClaim={handleTaskClaim}
+                onTaskUpdate={(updatedTask) => {
+                    setSelectedTask(updatedTask);
+                    loadTeamContext();
+                }}
                 onEditTask={(t) => {
                     setTaskToEdit(t);
                     setIsCreateTaskOpen(true);
