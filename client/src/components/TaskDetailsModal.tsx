@@ -13,11 +13,12 @@ interface TaskDetailsModalProps {
     project: Project;
     onEditTask?: (task: Task) => void;
     onTaskClaim?: (taskId: number) => void;
+    onTaskUpdate?: (updatedTask: Task) => void;
 }
 
 type TabType = 'overview' | 'reflections' | 'resources' | 'messages';
 
-export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onClose, task, project, onEditTask, onTaskClaim }) => {
+export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onClose, task, project, onEditTask, onTaskClaim, onTaskUpdate }) => {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [reflections, setReflections] = useState<TaskReflection[]>([]);
     const [resources, setResources] = useState<ProjectResource[]>([]);
@@ -82,8 +83,10 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         const newStuckState = !isStuck;
         setIsStuck(newStuckState);
         try {
-            await api.post(`/tasks/${task.id}/toggle-stuck`, { is_stuck: newStuckState });
+            const res = await api.post<{ ok: boolean, task: Task }>(`/tasks/${task.id}/toggle-stuck`, { is_stuck: newStuckState });
             addToast(newStuckState ? "Task marked as stuck." : "Task marked as unstuck.", "success");
+            
+            if (onTaskUpdate && res.task) onTaskUpdate(res.task);
 
             // Trigger the stuck decision tree if marked as stuck
             if (newStuckState) {
@@ -213,8 +216,8 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         if (!task || !canEdit) return;
         setLocalPriority(newPriority);
         try {
-            const updated = await api.updateTask(task.id, { priority: newPriority });
-            if (onEditTask) onEditTask(updated.task || { ...task, priority: newPriority });
+            const res = await api.updateTask(task.id, { priority: newPriority });
+            if (onTaskUpdate && res.task) onTaskUpdate(res.task);
             addToast(`Priority updated to ${newPriority}`, "success");
         } catch (err) {
             console.error(err);
