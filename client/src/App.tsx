@@ -19,6 +19,7 @@ import AdminLayout from './pages/admin/AdminLayout';
 import AdminOverview from './pages/admin/AdminOverview';
 import UserManagement from './pages/admin/UserManagement';
 import ClassOverview from './pages/admin/ClassOverview';
+import Calendar from './pages/Calendar';
 
 function App() {
     return (
@@ -51,6 +52,9 @@ function App() {
                                     <Route path="student/projects/:id" element={<StudentProjectBoard />} />
                                     <Route path="student/reviews/:assignmentId" element={<PeerReviewWorkspace />} />
                                 </Route>
+
+                                {/* Shared Routes */}
+                                <Route path="calendar" element={<Calendar />} />
                             </Route>
                         </Route>
 

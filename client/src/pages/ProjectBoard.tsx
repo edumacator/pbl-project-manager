@@ -11,6 +11,7 @@ import TimelineView from '../components/TimelineView';
 import { TaskDetailsModal } from '../components/TaskDetailsModal';
 import { TeamContributionsModal } from '../components/TeamContributionsModal';
 import { ProjectHomeView } from '../components/ProjectHomeView';
+import CalendarView from '../components/CalendarView';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -142,7 +143,7 @@ const ProjectBoard: React.FC = () => {
     const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
     const [isTeamMembersOpen, setIsTeamMembersOpen] = useState(false);
     const [classStudents, setClassStudents] = useState<User[]>([]);
-    const [viewMode, setViewMode] = useState<'home' | 'board' | 'timeline' | 'resources'>('home');
+    const [viewMode, setViewMode] = useState<'home' | 'board' | 'timeline' | 'calendar' | 'resources'>('home');
     const [expandedTeamIds, setExpandedTeamIds] = useState<Set<number>>(new Set());
     const [showArchived, setShowArchived] = useState(false);
     const [projectResources, setProjectResources] = useState<any[]>([]);
@@ -268,6 +269,7 @@ const ProjectBoard: React.FC = () => {
 
     const [searchParams, setSearchParams] = useSearchParams();
     const teamIdParam = searchParams.get('team_id');
+    const taskIdParam = searchParams.get('task');
 
     const fetchProjectResources = async () => {
         if (!id) return;
@@ -359,7 +361,6 @@ const ProjectBoard: React.FC = () => {
         }
         return res.url;
     };
-
     useEffect(() => {
         if (teamIdParam) {
             const tid = Number(teamIdParam);
@@ -370,6 +371,17 @@ const ProjectBoard: React.FC = () => {
             fetchTasks(null);
         }
     }, [teamIdParam]);
+
+    useEffect(() => {
+        if (tasks.length > 0 && taskIdParam) {
+            const taskIdDecoded = Number(taskIdParam);
+            const task = tasks.find(t => t.id === taskIdDecoded);
+            if (task) {
+                setSelectedTask(task);
+                setViewMode('board'); // Switch to board to show the modal context
+            }
+        }
+    }, [tasks, taskIdParam]);
 
     useEffect(() => {
         if (!project) {
@@ -547,8 +559,12 @@ const ProjectBoard: React.FC = () => {
                         {selectedTeamId && (
                             <>
                                 <button onClick={() => setViewMode('timeline')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'timeline' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Timeline</button>
+                                <button onClick={() => setViewMode('calendar')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Calendar</button>
                                 <button onClick={() => setViewMode('resources')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'resources' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Resources</button>
                             </>
+                        )}
+                        {!selectedTeamId && (
+                            <button onClick={() => setViewMode('calendar')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Calendar</button>
                         )}
                     </div>
                     <div className="flex items-center">
@@ -716,6 +732,13 @@ const ProjectBoard: React.FC = () => {
                             showArchived={showArchived}
                             onTaskClick={(task) => setSelectedTask(task)}
                             refreshTrigger={timelineRefresh}
+                        />
+                    ) : viewMode === 'calendar' ? (
+                        <CalendarView 
+                            projectId={Number(id)} 
+                            teamId={selectedTeamId || undefined}
+                            showHeader={true}
+                            showFilters={false}
                         />
                     ) : (
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 overflow-y-auto">

@@ -23,6 +23,7 @@ class Task implements JsonSerializable
     public bool $isBlocked = false; // Virtual
     public bool $isCompletable = true; // Virtual, default true
     public ?string $assigneeName;
+    public ?string $teamName;
     public string $priority;
     public ?string $updatedAt; // Restored
     public ?string $createdAt; // New
@@ -45,6 +46,7 @@ class Task implements JsonSerializable
         string $priority = 'P3',
         ?string $updatedAt = null,
         ?string $assigneeName = null,
+        ?string $teamName = null,
         ?string $createdAt = null,
         ?string $deletedAt = null, // New
         int $sortOrder = 0 // New
@@ -72,6 +74,7 @@ class Task implements JsonSerializable
         $this->priority = $priority;
         $this->updatedAt = $updatedAt;
         $this->assigneeName = $assigneeName;
+        $this->teamName = $teamName;
         $this->createdAt = $createdAt;
         $this->deletedAt = $deletedAt;
         $this->sortOrder = $sortOrder;
@@ -89,6 +92,7 @@ class Task implements JsonSerializable
             'assignee_id' => $this->assigneeId,
             'assignee_name' => $this->assigneeName,
             'team_id' => $this->teamId,
+            'team_name' => $this->teamName,
             'due_date' => $this->dueDate,
             'dependencies' => $this->dependencies ? json_decode($this->dependencies) : [],
             'is_blocked' => $this->isBlocked,

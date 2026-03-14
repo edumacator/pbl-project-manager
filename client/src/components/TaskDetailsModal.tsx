@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Project, TaskReflection, ProjectResource, TaskMessage } from '../types';
-import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks } from 'lucide-react';
+import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks, Download } from 'lucide-react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -226,6 +226,13 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         }
     };
 
+    const handleExportTask = () => {
+        if (!task) return;
+        const token = localStorage.getItem('auth_token');
+        const url = `${API_BASE}/calendar/events/task-${task.id}/ics${token ? `?token=${token}` : ''}`;
+        window.open(url, '_blank');
+    };
+
     if (!isOpen || !task) return null;
 
     const StatusIcon = task.status === 'done' ? CheckCircle2 : (task.status === 'doing' ? Clock : AlertCircle);
@@ -320,9 +327,20 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     <span className="text-sm text-gray-500">Start Date</span>
                                     <span className="font-medium text-gray-900">{task.start_date ? task.start_date.substring(0, 10) : '-'}</span>
                                 </div>
-                                <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
+                                <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm transition-colors group/date">
                                     <span className="text-sm text-gray-500">Due Date</span>
-                                    <span className="font-medium text-gray-900">{task.due_date ? task.due_date.substring(0, 10) : '-'}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-gray-900">{task.due_date ? task.due_date.substring(0, 10) : '-'}</span>
+                                        {isOwner && task.due_date && (
+                                            <button 
+                                                onClick={handleExportTask}
+                                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all active:scale-90"
+                                                title="Add to Calendar (.ics)"
+                                            >
+                                                <Download size={14} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="bg-white p-4 justify-between flex rounded-xl border border-gray-100 shadow-sm">
                                     <span className="text-sm text-gray-500">Dependencies</span>

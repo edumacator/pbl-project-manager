@@ -34,6 +34,7 @@ use App\Services\ReviewService;
 use App\Services\ClassService;
 use App\Services\AnalyticsService;
 use App\Services\ProjectQnaService;
+use App\Services\CalendarService;
 
 // Load Env
 Env::load(__DIR__ . '/../.env');
@@ -112,9 +113,9 @@ try {
     $classService->setProjectService($projectService);
     $studentService = new \App\Services\StudentService($taskRepo, $userRepo);
     $timelineService = new \App\Services\TimelineService($taskRepo, $projectRepo, $teamRepo, $checkpointRepo, $reviewService);
-    $analyticsService = new AnalyticsService();
     $qnaService = new ProjectQnaService($qnaRepo);
     $adminService = new \App\Services\AdminService($userRepo, $classRepo, $projectRepo, $taskRepo);
+    $calendarService = new CalendarService($taskRepo, $projectRepo, $teamRepo, $checkpointRepo, $resourceRepo, getenv('FRONTEND_URL') ?: '');
 } catch (\Throwable $e) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => ['code' => 'BOOTSTRAP_ERROR', 'message' => $e->getMessage()]]);
@@ -124,8 +125,15 @@ try {
 // Token Extraction
 $currentUser = null;
 $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+$token = null;
+
 if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
     $token = $matches[1];
+} elseif (isset($_GET['token'])) {
+    $token = $_GET['token'];
+}
+
+if ($token) {
     $currentUser = $authService->authenticateByToken($token);
 }
 
@@ -1784,6 +1792,102 @@ if (preg_match('#^/api/v1/teams/(\d+)/contributions$#', $uri, $matches) && $_SER
     } catch (\Exception $e) {
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+// Calendar Events
+if ($uri === '/api/v1/calendar/events' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Login required']]);
+        exit;
+    }
+
+    $filters = [
+        'scope' => $_GET['scope'] ?? 'all',
+        'project_id' => $_GET['project_id'] ?? null,
+        'team_id' => $_GET['team_id'] ?? null,
+        'include_tasks' => ($_GET['include_tasks'] ?? 'true') === 'true',
+        'include_milestones' => ($_GET['include_milestones'] ?? 'true') === 'true',
+        'include_projects' => ($_GET['include_projects'] ?? 'true') === 'true',
+    ];
+
+    try {
+        $events = $calendarService->getEvents($currentUser, $filters);
+        echo json_encode(['ok' => true, 'data' => $events]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+// ICS Single Event
+if (preg_match('#^/api/v1/calendar/events/([^/]+)/ics$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (!$currentUser) {
+        http_response_code(401);
+        exit;
+    }
+
+    $eventId = $matches[1];
+    
+    try {
+        $parts = explode('-', $eventId);
+        $type = $parts[0];
+        $id = (int) $parts[1];
+
+        $event = null;
+        if ($type === 'task') {
+            $task = $taskRepo->findById($id);
+            if ($task) $event = $calendarService->normalizeTask($task, null, null, true, $currentUser->role);
+        } elseif ($type === 'checkpoint') {
+            $checkpoint = $checkpointRepo->findById($id);
+            if ($checkpoint) $event = $calendarService->normalizeCheckpoint($checkpoint);
+        } elseif ($type === 'project') {
+            $project = $projectRepo->findById($id);
+            if ($project) $event = $calendarService->normalizeProject($project);
+        }
+
+        if (!$event) {
+            http_response_code(404);
+            exit;
+        }
+
+        $ics = $calendarService->generateIcs([$event]);
+        header('Content-Type: text/calendar; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $eventId . '.ics"');
+        echo $ics;
+    } catch (\Exception $e) {
+        http_response_code(500);
+    }
+    exit;
+}
+
+// ICS Bulk Export
+if ($uri === '/api/v1/calendar/export.ics' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (!$currentUser) {
+        http_response_code(401);
+        exit;
+    }
+
+    $filters = [
+        'scope' => $_GET['scope'] ?? 'all',
+        'project_id' => $_GET['project_id'] ?? null,
+        'team_id' => $_GET['team_id'] ?? null,
+        'include_tasks' => ($_GET['include_tasks'] ?? 'true') === 'true',
+        'include_milestones' => ($_GET['include_milestones'] ?? 'true') === 'true',
+        'include_projects' => ($_GET['include_projects'] ?? 'true') === 'true',
+    ];
+
+    try {
+        $events = $calendarService->getEvents($currentUser, $filters, true);
+        $ics = $calendarService->generateIcs($events);
+        header('Content-Type: text/calendar; charset=utf-8');
+        header('Content-Disposition: attachment; filename="pbl_deadlines.ics"');
+        echo $ics;
+    } catch (\Exception $e) {
+        http_response_code(500);
     }
     exit;
 }

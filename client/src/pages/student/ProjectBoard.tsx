@@ -12,6 +12,7 @@ import { CreateTaskModal } from '../../components/CreateTaskModal';
 import { CritiqueModal } from '../../components/CritiqueModal';
 import { ReflectionModal } from '../../components/ReflectionModal';
 import { ProjectHomeView } from '../../components/ProjectHomeView';
+import CalendarView from '../../components/CalendarView';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -21,7 +22,7 @@ export const StudentProjectBoard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [data, setData] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'home' | 'board' | 'timeline' | 'resources'>('board');
+    const [activeTab, setActiveTab] = useState<'home' | 'board' | 'timeline' | 'calendar' | 'resources'>('board');
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [timelineRefresh, setTimelineRefresh] = useState(0);
 
@@ -50,6 +51,7 @@ export const StudentProjectBoard: React.FC = () => {
             const task = data.tasks?.find((t: Task) => t.id === taskIdDecoded);
             if (task) {
                 setSelectedTask(task);
+                setActiveTab('board'); // ensure board view is active for context
             }
         }
     }, [data, taskIdParam]);
@@ -268,6 +270,12 @@ export const StudentProjectBoard: React.FC = () => {
                         <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" /> Timeline</div>
                     </button>
                     <button
+                        onClick={() => setActiveTab('calendar')}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'calendar' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" /> Calendar</div>
+                    </button>
+                    <button
                         onClick={() => setActiveTab('resources')}
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'resources' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
@@ -323,6 +331,16 @@ export const StudentProjectBoard: React.FC = () => {
                                 <p>The project timeline will be available once you are part of a team.</p>
                             </div>
                         )
+                    )}
+                    {activeTab === 'calendar' && (
+                        <div className="h-full p-4 overflow-auto">
+                            <CalendarView 
+                                projectId={Number(id)} 
+                                teamId={data.team?.id}
+                                showHeader={true}
+                                showFilters={false}
+                            />
+                        </div>
                     )}
                     {activeTab === 'resources' && (
                         <div className="h-full overflow-hidden bg-white">
