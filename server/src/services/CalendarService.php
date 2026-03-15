@@ -180,7 +180,8 @@ class CalendarService
             'assignee_name' => $task->assigneeName,
             'class_name' => $className,
             'project_id' => $task->projectId,
-            'color' => $this->getStatusColor($task->status)
+            'is_stuck' => (bool)$task->isStuck,
+            'color' => $task->isStuck ? '#F59E0B' : $this->getStatusColor($task->status)
         ];
     }
 

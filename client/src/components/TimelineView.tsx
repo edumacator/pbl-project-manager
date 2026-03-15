@@ -562,10 +562,11 @@ const TimelineView: React.FC<TimelineViewProps> = ({ teamId, projectProp, onAddT
                                         <div
                                             className={`absolute h-6 rounded-md cursor-grab active:cursor-grabbing hover:brightness-110 shadow-sm flex items-center px-6 overflow-hidden z-10 
                                                 ${horizontalDragState?.taskId === task.id ? 'opacity-80 scale-y-[1.1] shadow-lg transition-none' : 'transition-all'} 
-                                                ${task.status === 'done' ? 'bg-emerald-500' :
+                                                ${task.is_stuck ? 'bg-amber-500' :
+                                                (task.status === 'done' ? 'bg-emerald-500' :
                                                     (task.status as string === 'in_progress' || task.status as string === 'doing') ? 'bg-blue-500' :
                                                         (task.status as string) === 'review' ? 'bg-purple-500' :
-                                                            task.is_blocked ? 'bg-rose-400' : 'bg-slate-400'} 
+                                                            task.is_blocked ? 'bg-rose-400' : 'bg-slate-400')}
                                                 ${task.deleted_at ? 'opacity-40 grayscale-[0.5]' : ''}`
                                             }
                                             style={{
@@ -624,6 +625,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ teamId, projectProp, onAddT
                 <div className="flex items-center gap-1"><div className="w-4 h-4 bg-blue-500 rounded"></div> In Progress</div>
                 <div className="flex items-center gap-1"><div className="w-4 h-4 bg-purple-500 rounded"></div> Review</div>
                 <div className="flex items-center gap-1"><div className="w-4 h-4 bg-emerald-500 rounded"></div> Done</div>
+                <div className="flex items-center gap-1"><div className="w-4 h-4 bg-amber-500 rounded"></div> Stuck</div>
                 <div className="flex items-center gap-1"><div className="w-4 h-4 bg-rose-400 rounded"></div> Blocked</div>
                 <div className="flex items-center gap-1"><div className="w-0.5 h-4 bg-red-500"></div> Hard Deadline / Project Due</div>
                 <div className="flex items-center gap-1"><div className="w-0.5 h-4 bg-blue-300 border-l border-dashed"></div> Milestone</div>

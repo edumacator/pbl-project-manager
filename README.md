@@ -10,6 +10,7 @@ A lightweight, portable project management tool designed for High School PBL (Pr
 -   **Checkpoints & Reflections**: Scheduled milestones with structured reflection forms.
 -   **Peer Reviews**: Structured feedback mechanism for team members.
 -   **Analytics**: Teacher dashboard with insights on team velocity and "stuck" status.
+-   **Project Context**: See [/project-brain](/project-brain/README.md) for persistent architectural and pedagogical context.
 
 ## Architecture
 

@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id INT AUTO_INCREMENT PRIMARY KEY,
     project_id INT NOT NULL,
     team_id INT NULL,
+    parent_task_id INT NULL,
     due_date DATETIME DEFAULT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
@@ -118,6 +119,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     deleted_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE CASCADE,
     FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE
     SET NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

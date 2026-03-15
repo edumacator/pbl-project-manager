@@ -12,4 +12,5 @@ interface TaskRepositoryInterface
     public function update(Task $task): bool;
     public function delete(int $id): bool;
     public function restore(int $id): bool;
+    public function findByParentId(int $parentId, bool $includeDeleted = false): array;
 }

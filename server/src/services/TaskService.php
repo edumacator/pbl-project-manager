@@ -185,6 +185,19 @@ class TaskService
 
     public function createTask(array $data, int $userId): Task
     {
+        $parentId = isset($data['parent_task_id']) ? (int)$data['parent_task_id'] : null;
+        if ($parentId) {
+            $parentTask = $this->taskRepo->findById($parentId);
+            if (!$parentTask) throw new \Exception("Parent task not found");
+            if ($parentTask->parentId) throw new \Exception("Nesting level exceeded: subtasks cannot be parents");
+            if ($parentTask->projectId !== (int)$data['project_id']) throw new \Exception("Cross-project subtask assignment is not allowed");
+            // Check team parity if both are team-scoped
+            $teamId = isset($data['team_id']) ? (int)$data['team_id'] : null;
+            if ($teamId && $parentTask->teamId && $parentTask->teamId !== $teamId) {
+                throw new \Exception("Cross-team subtask assignment is not allowed");
+            }
+        }
+
         $startDate = $data['start_date'] ?? date('Y-m-d');
         $dueDate = $data['due_date'] ?? null;
         $duration = isset($data['duration_days']) ? (int) $data['duration_days'] : null;
@@ -257,9 +270,11 @@ class TaskService
             $data['priority'] ?? 'P3', // priority
             null, // updatedAt
             null, // assigneeName
+            null, // teamName
             null, // createdAt
             null, // deletedAt
-            0 // sortOrder
+            0,    // sortOrder
+            $parentId
         );
 
         $id = $this->taskRepo->create($task);
@@ -267,7 +282,11 @@ class TaskService
 
         // Audit Log
         if ($this->auditRepo) {
-            $log = new AuditLog($userId, 'CREATE_TASK', json_encode(['task_id' => $id]));
+            $log = new \App\Domain\AuditLog($userId, 'CREATE_TASK', json_encode([
+                'task_id' => $id,
+                'title' => $data['title'],
+                'parent_task_id' => $parentId
+            ]));
             $this->auditRepo->log($log);
         }
 
@@ -279,6 +298,42 @@ class TaskService
         $task = $this->taskRepo->findById($taskId);
         if (!$task)
             return null;
+
+        if (isset($data['parent_task_id'])) {
+            $newParentId = (int)$data['parent_task_id'];
+            if ($newParentId === $taskId) throw new \Exception("A task cannot be its own parent");
+            
+            $parentTask = $this->taskRepo->findById($newParentId);
+            if (!$parentTask) throw new \Exception("Parent task not found");
+            if ($parentTask->parentId) throw new \Exception("Nesting level exceeded: subtasks cannot be parents");
+            if ($parentTask->projectId !== $task->projectId) throw new \Exception("Cross-project subtask assignment is not allowed");
+            
+            // Circular check: if this task already has subtasks, it cannot be a child
+            $existingSubtasks = $this->taskRepo->findByProjectId($task->projectId);
+            foreach ($existingSubtasks as $st) {
+                if ($st->parentId === $taskId) throw new \Exception("This task already has subtasks and cannot become a subtask itself");
+            }
+            
+            $task->parentId = $newParentId;
+        } elseif (array_key_exists('parent_task_id', $data) && $data['parent_task_id'] === null) {
+            $task->parentId = null;
+        }
+
+        if (isset($data['status']) && $data['status'] === 'done' && $task->status !== 'done') {
+            // Check for incomplete subtasks
+            $allTasksInProject = $this->taskRepo->findByProjectId($task->projectId, $task->teamId);
+            $subtasks = array_filter($allTasksInProject, fn($t) => $t->parentId === $taskId);
+            $incompleteSubtasks = array_filter($subtasks, fn($st) => $st->status !== 'done');
+            
+            if (!empty($incompleteSubtasks)) {
+                throw new \Exception("Cannot complete task: " . count($incompleteSubtasks) . " subtask(s) are still incomplete.");
+            }
+
+            // Existing completable check (reviews, etc)
+            if (!$task->isCompletable) {
+                // ... logic already exists below or in ReviewService
+            }
+        }
 
         $oldStatus = $task->status;
         $oldIsStuck = $task->isStuck;
@@ -385,9 +440,17 @@ class TaskService
     {
         $tasks = $this->taskRepo->findByProjectId($projectId, $teamId, $includeDeleted);
 
-        // Enrich with isCompletable status
+        // Enrich tasks
         foreach ($tasks as $task) {
             $task->isCompletable = $this->reviewService->isTaskCompletable($task->id);
+
+            // Subtask enrichment (using the already fetched $tasks array)
+            $subtasks = array_filter($tasks, fn($t) => $t->parentId === $task->id);
+            if (!empty($subtasks)) {
+                $task->subtaskCount = count($subtasks);
+                $task->completedSubtaskCount = count(array_filter($subtasks, fn($st) => $st->status === 'done'));
+            }
+
             // Optionally include checklist summary for board view
             $items = $this->checklistRepo->findByTaskId($task->id);
             if (!empty($items)) {
@@ -408,6 +471,12 @@ class TaskService
         if ($task) {
             $task->isCompletable = $this->reviewService->isTaskCompletable($task->id);
             $task->checklist = $this->checklistRepo->findByTaskId($taskId);
+            
+            // Include subtasks for detail view
+            $allTasksInProject = $this->taskRepo->findByProjectId($task->projectId, $task->teamId);
+            $task->subtasks = array_values(array_filter($allTasksInProject, fn($t) => $t->parentId === $taskId));
+            $task->subtaskCount = count($task->subtasks);
+            $task->completedSubtaskCount = count(array_filter($task->subtasks, fn($st) => $st->status === 'done'));
         }
         return $task;
     }

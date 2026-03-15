@@ -63,13 +63,13 @@ const KanbanColumn: React.FC<{
                         draggable
                         onDragStart={(e) => e.dataTransfer.setData("taskId", task.id.toString())}
                         onClick={() => onTaskClick?.(task)}
-                        className={`bg-white p-4 rounded-lg shadow-sm border border-gray-200 cursor-move hover:shadow-md transition-shadow ${!task.is_completable && status !== 'done' ? 'border-l-4 border-l-amber-400' : ''}`}
+                        className={`bg-white p-4 rounded-lg shadow-sm border ${status === 'stuck' ? 'border-amber-400 bg-amber-50/30' : 'border-gray-200'} cursor-move hover:shadow-md transition-shadow ${!task.is_completable && status !== 'done' && status !== 'stuck' ? 'border-l-4 border-l-amber-400' : ''}`}
                         title={!task.is_completable ? "Critique Required before Done" : ""}
                     >
                         <div className="font-medium text-gray-900 mb-1 flex justify-between">
-                            {task.title}
+                            <span className="truncate mr-2">{task.title}</span>
                             {!task.is_completable && (
-                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded h-fit">Critique Req.</span>
+                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded h-fit shrink-0">Critique Req.</span>
                             )}
                         </div>
                         {task.priority && (
@@ -83,6 +83,22 @@ const KanbanColumn: React.FC<{
                             </div>
                         )}
                         {task.description && <div className="text-gray-500 text-xs mb-3 line-clamp-2">{task.description}</div>}
+
+                        {/* Subtask Progress */}
+                        {task.subtask_count !== undefined && task.subtask_count > 0 && (
+                            <div className="mb-3">
+                                <div className="flex justify-between text-[10px] font-semibold text-gray-500 mb-1">
+                                    <span>SUBTASKS</span>
+                                    <span>{task.completed_subtask_count || 0}/{task.subtask_count}</span>
+                                </div>
+                                <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                                    <div 
+                                        className="bg-indigo-500 h-full transition-all duration-300"
+                                        style={{ width: `${((task.completed_subtask_count || 0) / task.subtask_count) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex items-center justify-between text-xs text-gray-400 mt-2">
                             <div className="flex items-center gap-2">
@@ -464,28 +480,58 @@ const ProjectBoard: React.FC = () => {
 
     // --- Drag and Drop & Status Logic ---
 
-    const updateTaskStatus = async (taskId: number, newStatus: string) => {
+    const updateTaskStatus = async (taskId: number, newStatus: string, additionalFields: any = {}) => {
         // Optimistic update
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus as any } : t));
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus as any, ...additionalFields } : t));
 
         try {
-            await api.put<Task>(`/tasks/${taskId}`, { status: newStatus });
-        } catch (error) {
+            await api.put<Task>(`/tasks/${taskId}`, { status: newStatus, ...additionalFields });
+        } catch (error: any) {
             console.error("Failed to update task status", error);
             // Revert
             fetchTasks(selectedTeamId);
-            addToast("Failed to move task.", 'error');
+            
+            const message = error.response?.data?.error?.message || "Failed to move task.";
+            addToast(message, 'error');
+        }
+    };
+
+    const handleToggleStuck = async (task: Task, forceState?: boolean) => {
+        const newStuckState = forceState !== undefined ? forceState : !task.is_stuck;
+        
+        // Optimistic update
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, is_stuck: newStuckState } : t));
+
+        try {
+            const res = await api.post<{ ok: boolean, task: Task }>(`/tasks/${task.id}/toggle-stuck`, { is_stuck: newStuckState });
+            addToast(newStuckState ? "Task marked as stuck." : "Task marked as unstuck.", "success");
+            if (res.task) {
+                setTasks(prev => prev.map(t => t.id === task.id ? res.task : t));
+            }
+        } catch (err) {
+            console.error("Failed to toggle stuck state", err);
+            // Revert
+            fetchTasks(selectedTeamId);
+            addToast("Failed to update task state.", "error");
         }
     };
 
     const handleTaskDrop = (taskId: number, newStatus: string) => {
         const task = tasks.find(t => t.id === taskId);
-        if (!task || task.status === newStatus) return;
+        if (!task) return;
 
-        // Gatekeeper Logic: Teachers bypass student-facing critique rituals
-        // if (newStatus === 'done' && task.is_completable === false) { ... }
+        if (newStatus === 'stuck') {
+            if (task.is_stuck) return;
+            handleToggleStuck(task);
+            return;
+        }
 
-        updateTaskStatus(taskId, newStatus);
+        if (task.status === newStatus && !task.is_stuck) return;
+
+        // If it was stuck and we move it elsewhere, reset the stuck status atomically
+        const additionalFields = (task.is_stuck && newStatus !== 'stuck') ? { is_stuck: false } : {};
+
+        updateTaskStatus(taskId, newStatus, additionalFields);
     };
 
     const handleCritiqueSubmit = async (warm: string, cool: string, requiresRevision: boolean) => {
@@ -513,9 +559,10 @@ const ProjectBoard: React.FC = () => {
     };
 
 
-    const todo = tasks.filter(t => t.status === 'todo');
-    const doing = tasks.filter(t => t.status === 'doing' || (t.status as string) === 'in_progress');
-    const done = tasks.filter(t => t.status === 'done');
+    const todo = tasks.filter(t => t.status === 'todo' && !t.is_stuck && !t.parent_task_id);
+    const doing = tasks.filter(t => (t.status === 'doing' || (t.status as string) === 'in_progress') && !t.is_stuck && !t.parent_task_id);
+    const stuck = tasks.filter(t => t.is_stuck && !t.parent_task_id);
+    const done = tasks.filter(t => t.status === 'done' && !t.parent_task_id);
 
     const selectedTeam = teams.find(t => t.id === selectedTeamId);
     const availableAssignees = selectedTeam ? selectedTeam.members : [];
@@ -714,6 +761,16 @@ const ProjectBoard: React.FC = () => {
                                 onTaskClick={(task) => setSelectedTask(task)}
                             />
                             <KanbanColumn
+                                title="Stuck"
+                                status="stuck"
+                                tasks={stuck}
+                                onAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
+                                onDrop={handleTaskDrop}
+                                onArchive={handleTaskArchived}
+                                onRestore={handleTaskRestore}
+                                onTaskClick={(task) => setSelectedTask(task)}
+                            />
+                            <KanbanColumn
                                 title="Done"
                                 status="done"
                                 tasks={done}
@@ -841,8 +898,9 @@ const ProjectBoard: React.FC = () => {
                                     ) : (
                                         classTeams.sort((a: Team, b: Team) => a.name.localeCompare(b.name)).map((team: Team) => {
                                             const teamTasks = tasks.filter(t => t.team_id === team.id);
-                                            const teamTodo = teamTasks.filter(t => t.status === 'todo');
-                                            const teamDoing = teamTasks.filter(t => (t.status as string) === 'doing' || (t.status as string) === 'in_progress');
+                                            const teamTodo = teamTasks.filter(t => t.status === 'todo' && !t.is_stuck);
+                                            const teamDoing = teamTasks.filter(t => ((t.status as string) === 'doing' || (t.status as string) === 'in_progress') && !t.is_stuck);
+                                            const teamStuck = teamTasks.filter(t => t.is_stuck);
                                             const teamDone = teamTasks.filter(t => t.status === 'done');
 
                                             return (
@@ -866,7 +924,7 @@ const ProjectBoard: React.FC = () => {
                                                     </div>
                                                     {expandedTeamIds.has(team.id) && (
                                                         <div className="pl-8 pb-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                                                 <div className="bg-gray-50 rounded p-3 text-xs border border-gray-100">
                                                                     <span className="font-semibold text-gray-500 mb-2 block uppercase tracking-wider text-[10px]">To Do ({teamTodo.length})</span>
                                                                     <div className="space-y-2">
@@ -877,6 +935,12 @@ const ProjectBoard: React.FC = () => {
                                                                     <span className="font-semibold text-blue-600 mb-2 block uppercase tracking-wider text-[10px]">In Progress ({teamDoing.length})</span>
                                                                     <div className="space-y-2">
                                                                         {teamDoing.map(t => <div key={t.id} className="bg-white p-2 border rounded shadow-sm truncate border-l-4 border-l-blue-400">{t.title}</div>)}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="bg-amber-50/50 rounded p-3 text-xs border border-amber-100">
+                                                                    <span className="font-semibold text-amber-600 mb-2 block uppercase tracking-wider text-[10px]">Stuck ({teamStuck.length})</span>
+                                                                    <div className="space-y-2">
+                                                                        {teamStuck.map(t => <div key={t.id} className="bg-white p-2 border rounded shadow-sm truncate border-l-4 border-l-amber-400">{t.title}</div>)}
                                                                     </div>
                                                                 </div>
                                                                 <div className="bg-green-50/50 rounded p-3 text-xs border border-green-100">

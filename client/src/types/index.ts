@@ -68,6 +68,10 @@ export interface Task {
     deleted_at?: string; // Added
     checklist?: TaskChecklistItem[]; // Added
     checklist_summary?: { total: number; completed: number }; // Added
+    parent_task_id?: number | null;
+    subtasks?: Task[];
+    subtask_count?: number;
+    completed_subtask_count?: number;
 }
 
 export interface TaskChecklistItem {

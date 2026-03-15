@@ -5,6 +5,7 @@ import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import StuckTaskModal from './StuckTaskModal';
+import { SubtaskList } from './SubtaskList';
 
 interface TaskDetailsModalProps {
     isOpen: boolean;
@@ -31,6 +32,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const [file, setFile] = useState<File | null>(null);
     const [uploadMode, setUploadMode] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [localTask, setLocalTask] = useState<Task | null>(task);
     const { addToast } = useToast();
     const { user } = useAuth();
     const [isStuck, setIsStuck] = useState(task?.is_stuck || false);
@@ -53,12 +55,14 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         if (!task) return;
         setLoading(true);
         try {
-            const [refRes, resRes, msgRes, checkRes] = await Promise.all([
+            const [taskRes, refRes, resRes, msgRes, checkRes] = await Promise.all([
+                api.get<Task>(`/tasks/${task.id}`),
                 api.get<TaskReflection[]>(`/tasks/${task.id}/reflections`).catch(() => []),
                 api.get<ProjectResource[]>(`/tasks/${task.id}/resources`).catch(() => []),
                 api.get<TaskMessage[]>(`/tasks/${task.id}/messages`).catch(() => []),
                 api.get<any[]>(`/tasks/${task.id}/checklist`).catch(() => [])
             ]);
+            if (taskRes) setLocalTask(taskRes);
             setReflections(refRes || []);
             setResources(resRes || []);
             setMessages(msgRes || []);
@@ -73,6 +77,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
 
     useEffect(() => {
         if (isOpen && task) {
+            setLocalTask(task);
             fetchData();
             setActiveTab('overview');
         }
@@ -209,6 +214,42 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         } catch (err) {
             console.error(err);
             addToast("Failed to delete item.", "error");
+        }
+    };
+
+    const handleConvertToSubtask = async (item: any) => {
+        if (!canEdit || !task) return;
+        setLoading(true);
+        try {
+            // 1. Create subtask
+            await api.post(`/projects/${project.id}/tasks`, {
+                project_id: project.id,
+                team_id: task.team_id,
+                title: item.content,
+                parent_task_id: task.id,
+                status: item.is_completed ? 'done' : 'todo',
+                priority: 'P3'
+            });
+
+            // 2. Delete checklist item
+            await api.delete(`/checklist-items/${item.id}`);
+            
+            // 3. Refresh data
+            setChecklist(checklist.filter(i => i.id !== item.id));
+            fetchData();
+            
+            // 4. Trigger parent refresh
+            if (onTaskUpdate) {
+                const updatedTask = await api.get<Task>(`/tasks/${task.id}`);
+                onTaskUpdate(updatedTask);
+            }
+            
+            addToast("Converted checklist item to subtask", "success");
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to convert item.", "error");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -420,12 +461,21 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                                         {item.content}
                                                     </span>
                                                     {canEdit && (
-                                                        <button
-                                                            onClick={() => handleDeleteChecklistItem(item.id)}
-                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
+                                                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all">
+                                                            <button
+                                                                onClick={() => handleConvertToSubtask(item)}
+                                                                className="p-1 text-gray-400 hover:text-indigo-600 transition-all"
+                                                                title="Convert to Subtask"
+                                                            >
+                                                                <ExternalLink className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteChecklistItem(item.id)}
+                                                                className="p-1 text-gray-400 hover:text-red-500 transition-all"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             ))}
@@ -437,11 +487,6 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                                     type="text"
                                                     value={newChecklistItem}
                                                     onChange={(e) => setNewChecklistItem(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' && newChecklistItem.trim()) {
-                                                            handleAddChecklistItem();
-                                                        }
-                                                    }}
                                                     placeholder="Add a step..."
                                                     className="w-full text-sm p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                                 />
@@ -478,6 +523,27 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     </div>
                                 )}
                             </div>
+
+                            {/* Subtasks Section */}
+                            {!task.parent_task_id && localTask && (
+                                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                    <SubtaskList 
+                                        parentTask={localTask}
+                                        project={project}
+                                        subtasks={localTask.subtasks || []}
+                                        onSubtaskUpdate={() => {
+                                            fetchData();
+                                            // Trigger parent refresh to update progress on Kanban
+                                            if (onTaskUpdate) {
+                                                api.get<Task>(`/tasks/${task.id}`).then(updatedTask => {
+                                                    onTaskUpdate(updatedTask);
+                                                });
+                                            }
+                                        }}
+                                        canEdit={canEdit}
+                                    />
+                                </div>
+                            )}
 
                             {/* Stuck State Toggle */}
                             {isOwner && (
