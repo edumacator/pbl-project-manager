@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { Project, Class } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 
@@ -11,6 +12,7 @@ const CreateProject: React.FC = () => {
     const isEditMode = !!id;
     const [searchParams] = useSearchParams();
     const preselectedClassId = searchParams.get('class_id');
+    const { user } = useAuth();
 
     const [title, setTitle] = useState('');
     const [dq, setDq] = useState('');
@@ -143,7 +145,7 @@ const CreateProject: React.FC = () => {
                 title,
                 driving_question: dq,
                 description,
-                teacher_id: 1, // Hardcoded auth
+                teacher_id: user?.id,
                 class_ids: selectedClassIds.map(Number),
                 due_date: dueDate || null,
                 requires_reflection: requiresReflection,
