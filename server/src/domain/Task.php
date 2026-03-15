@@ -27,6 +27,10 @@ class Task implements JsonSerializable
     public string $priority;
     public ?string $updatedAt; // Restored
     public ?string $createdAt; // New
+    public ?int $parentId; // parent_task_id
+    public ?array $subtasks = null;
+    public ?int $subtaskCount = null;
+    public ?int $completedSubtaskCount = null;
     public ?array $checklist = null; // New
     public ?array $checklistSummary = null; // New
 
@@ -49,7 +53,8 @@ class Task implements JsonSerializable
         ?string $teamName = null,
         ?string $createdAt = null,
         ?string $deletedAt = null, // New
-        int $sortOrder = 0 // New
+        int $sortOrder = 0, // New
+        ?int $parentId = null
     ) {
         $this->projectId = $projectId;
         $this->title = $title;
@@ -78,6 +83,7 @@ class Task implements JsonSerializable
         $this->createdAt = $createdAt;
         $this->deletedAt = $deletedAt;
         $this->sortOrder = $sortOrder;
+        $this->parentId = $parentId;
     }
 
     public function jsonSerialize(): mixed
@@ -104,6 +110,10 @@ class Task implements JsonSerializable
             'created_at' => $this->createdAt,
             'deleted_at' => $this->deletedAt,
             'sort_order' => $this->sortOrder,
+            'parent_task_id' => $this->parentId,
+            'subtasks' => $this->subtasks,
+            'subtask_count' => $this->subtaskCount,
+            'completed_subtask_count' => $this->completedSubtaskCount,
             'checklist' => $this->checklist,
             'checklist_summary' => $this->checklistSummary
         ];

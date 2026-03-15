@@ -6,7 +6,8 @@ import {
   ChevronRight, 
   Download, 
   Calendar as CalendarIcon,
-  Info
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, subDays } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,7 @@ interface CalendarEvent {
   class_name?: string;
   project_id: number;
   color: string;
+  is_stuck?: boolean;
 }
 
 interface CalendarViewProps {
@@ -265,6 +267,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
           )}
 
+          <div className="relative group mr-2">
+            <span className="text-xs font-semibold text-amber-600 cursor-help flex items-center gap-1 bg-amber-50 px-2 py-2 rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors">
+              <Info size={14} />
+              Snapshot Warning
+            </span>
+            <div className="absolute bottom-full mb-2 right-0 w-64 p-3 bg-white border border-slate-200 shadow-xl rounded-lg text-xs text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[12000] ring-1 ring-slate-900/5">
+              <p className="font-bold text-amber-900 mb-1 text-[11px] uppercase tracking-wider">ICS Snapshot Notice</p>
+              <p className="leading-relaxed">
+                ICS files are <strong>static snapshots</strong>. They will <strong>not update automatically</strong> in your external calendar if deadlines change in the app.
+              </p>
+              <div className="absolute -bottom-1 right-8 w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45"></div>
+            </div>
+          </div>
+
           <button
             onClick={handleExportAll}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-medium shadow-sm active:scale-95"
@@ -285,13 +301,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       onClick={() => handleEventClick(event)}
       title={event.title}
       style={{ borderLeftColor: event.color }}
-      className={`group relative px-2 py-1 font-medium rounded bg-white hover:bg-slate-50 border border-slate-100 border-l-4 shadow-sm cursor-pointer transition-all ${
+      className={`group relative px-2 py-1 font-medium rounded ${event.is_stuck ? 'bg-amber-50 border-amber-400' : 'bg-white border-slate-100'} hover:bg-slate-50 border border-l-4 shadow-sm cursor-pointer transition-all ${
         isSmall ? 'text-[11px]' : 'text-sm py-2'
       }`}
     >
       <div className="flex flex-col gap-0.5 max-w-full">
-        <span className="truncate text-slate-800">
-          {event.title}
+        <span className={`${event.is_stuck ? 'text-amber-900' : 'text-slate-800'} truncate font-bold`}>
+          {event.is_stuck && "⚠️ "}{event.title}
         </span>
         {event.team_name && (
           <span className={`${isSmall ? 'text-[9px]' : 'text-[11px]'} text-slate-500 font-normal`}>
@@ -482,19 +498,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div className="w-full animate-in fade-in duration-500">
       <div className="flex flex-col gap-6">
-        {showHeader && (
-            <div className="flex items-start gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                <div className="p-2 bg-amber-100 rounded-lg text-amber-600 shrink-0">
-                    <Info size={20} />
-                </div>
-                <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-amber-900">Snapshot Downloads</h4>
-                    <p className="text-xs text-amber-800 leading-relaxed mt-0.5">
-                    Downloaded calendar files (.ics) are snapshots and will <strong>not update automatically</strong> if deadlines change in the app. 
-                    </p>
-                </div>
-            </div>
-        )}
 
         {showHeader && renderHeader()}
 
@@ -579,6 +582,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 <div className="flex items-center gap-2 text-[11px] text-slate-600">
                   <span className="font-semibold text-slate-400">Team:</span>
                   <span>{hoveredEvent.team_name}</span>
+                </div>
+              )}
+
+              {hoveredEvent.is_stuck && (
+                <div className="flex items-center gap-2 text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                  <AlertTriangle size={12} />
+                  <span>Marked as STUCK</span>
                 </div>
               )}
 

@@ -18,8 +18,8 @@ class TaskRepository implements TaskRepositoryInterface
     public function create(Task $task): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, due_date, dependencies, start_date, duration_days, is_stuck, priority, sort_order)
-            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :due_date, :dependencies, :start_date, :duration_days, :is_stuck, :priority, :sort_order)
+            INSERT INTO tasks (project_id, title, description, status, assignee_id, team_id, parent_task_id, due_date, dependencies, start_date, duration_days, is_stuck, priority, sort_order)
+            VALUES (:project_id, :title, :description, :status, :assignee_id, :team_id, :parent_task_id, :due_date, :dependencies, :start_date, :duration_days, :is_stuck, :priority, :sort_order)
         ");
 
         $stmt->execute([
@@ -29,6 +29,7 @@ class TaskRepository implements TaskRepositoryInterface
             ':status' => $task->status,
             ':assignee_id' => $task->assigneeId,
             ':team_id' => $task->teamId,
+            ':parent_task_id' => $task->parentId,
             ':due_date' => $task->dueDate,
             ':dependencies' => $task->dependencies ? json_encode($task->dependencies) : null,
             ':start_date' => $task->startDate ?? null,
@@ -83,7 +84,7 @@ class TaskRepository implements TaskRepositoryInterface
     {
         $stmt = $this->pdo->prepare("
             UPDATE tasks 
-            SET title = :title, description = :description, status = :status, assignee_id = :assignee_id, team_id = :team_id, due_date = :due_date, dependencies = :dependencies, start_date = :start_date, duration_days = :duration_days, is_stuck = :is_stuck, priority = :priority, deleted_at = :deleted_at, sort_order = :sort_order
+            SET title = :title, description = :description, status = :status, assignee_id = :assignee_id, team_id = :team_id, parent_task_id = :parent_task_id, due_date = :due_date, dependencies = :dependencies, start_date = :start_date, duration_days = :duration_days, is_stuck = :is_stuck, priority = :priority, deleted_at = :deleted_at, sort_order = :sort_order
             WHERE id = :id
         ");
 
@@ -93,6 +94,7 @@ class TaskRepository implements TaskRepositoryInterface
             ':status' => $task->status,
             ':assignee_id' => $task->assigneeId,
             ':team_id' => $task->teamId,
+            ':parent_task_id' => $task->parentId,
             ':due_date' => $task->dueDate,
             ':dependencies' => $task->dependencies,
             ':start_date' => $task->startDate ?? null,
@@ -126,7 +128,8 @@ class TaskRepository implements TaskRepositoryInterface
             $row['team_name'] ?? null,
             $row['created_at'] ?? null,
             $row['deleted_at'] ?? null,
-            (int) ($row['sort_order'] ?? 0)
+            (int) ($row['sort_order'] ?? 0),
+            $row['parent_task_id'] ? (int) $row['parent_task_id'] : null
         );
     }
 
@@ -204,5 +207,26 @@ class TaskRepository implements TaskRepositoryInterface
             AND t.due_date < NOW()
         ");
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function findByParentId(int $parentId, bool $includeDeleted = false): array
+    {
+        $sql = "
+            SELECT t.*, u.name as assignee_name, tm.name as team_name
+            FROM tasks t
+            LEFT JOIN users u ON t.assignee_id = u.id
+            LEFT JOIN teams tm ON t.team_id = tm.id
+            WHERE t.parent_task_id = :parent_id
+        ";
+        if (!$includeDeleted) {
+            $sql .= " AND t.deleted_at IS NULL";
+        }
+        $sql .= " ORDER BY t.sort_order ASC, t.id ASC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':parent_id' => $parentId]);
+        $rows = $stmt->fetchAll();
+
+        return array_map([$this, 'mapRowToTask'], $rows);
     }
 }

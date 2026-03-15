@@ -654,6 +654,23 @@ if (preg_match('#^/api/v1/projects/(\d+)/tasks$#', $uri, $matches)) {
 // Update Task
 if (preg_match('#^/api/v1/tasks/(\d+)$#', $uri, $matches)) {
     $taskId = (int) $matches[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        try {
+            $task = $taskService->getTask($taskId);
+            if ($task) {
+                echo json_encode(['ok' => true, 'data' => $task]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Task not found']]);
+            }
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'PATCH' || $_SERVER['REQUEST_METHOD'] === 'PUT') {
         $input = json_decode(file_get_contents('php://input'), true);
         $userId = $currentUser->id;

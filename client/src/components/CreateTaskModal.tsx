@@ -15,6 +15,7 @@ interface CreateTaskModalProps {
     availableMembers?: any[];
     teams?: any[]; // Pass teams for selection
     taskToEdit?: Task | null;
+    parentTaskId?: number | null;
 }
 
 const getTaskDepths = (tasks: Task[]): Record<number, number> => {
@@ -47,7 +48,7 @@ const getTaskDepths = (tasks: Task[]): Record<number, number> => {
     return depths;
 };
 
-export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, existingTasks, isOpen, onClose, onTaskCreated, defaultTeamId, availableMembers, teams, taskToEdit }) => {
+export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, existingTasks, isOpen, onClose, onTaskCreated, defaultTeamId, availableMembers, teams, taskToEdit, parentTaskId }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [status, setStatus] = useState<'todo' | 'doing' | 'done'>('todo');
@@ -122,7 +123,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
                 due_date: dueDate || null,
                 start_date: startDate || null,
                 priority,
-                dependencies: selectedDependencies
+                dependencies: selectedDependencies,
+                parent_task_id: parentTaskId || (taskToEdit?.parent_task_id || null)
             };
 
             let res;
@@ -279,7 +281,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ project, exist
                         <div className="border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-gray-50">
                             {(() => {
                                 const taskDepths = getTaskDepths(existingTasks);
-                                const filteredTasks = [...existingTasks.filter(t => t.id !== taskToEdit?.id)].sort((a, b) => {
+                                const filteredTasks = [...existingTasks.filter(t => t.id !== taskToEdit?.id && t.id !== parentTaskId)].sort((a, b) => {
                                     const depthDiff = taskDepths[a.id] - taskDepths[b.id];
                                     if (depthDiff !== 0) return depthDiff;
                                     return a.id - b.id;

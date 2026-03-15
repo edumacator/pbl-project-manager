@@ -13,6 +13,7 @@ import { CritiqueModal } from '../../components/CritiqueModal';
 import { ReflectionModal } from '../../components/ReflectionModal';
 import { ProjectHomeView } from '../../components/ProjectHomeView';
 import CalendarView from '../../components/CalendarView';
+import StuckTaskModal from '../../components/StuckTaskModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -32,6 +33,7 @@ export const StudentProjectBoard: React.FC = () => {
     const [critiqueTask, setCritiqueTask] = useState<Task | null>(null);
 
     const [isReflectionModalOpen, setIsReflectionModalOpen] = useState(false);
+    const [showStuckModal, setShowStuckModal] = useState(false);
     const [reflectionTask, setReflectionTask] = useState<Task | null>(null);
     const [reflectionTransition, setReflectionTransition] = useState<'start_work' | 'finish_task'>('start_work');
     const [pendingStatus, setPendingStatus] = useState<string | null>(null);
@@ -121,18 +123,60 @@ export const StudentProjectBoard: React.FC = () => {
             }
         }
 
-        await executeTaskMove(taskId, newStatus);
+        if (newStatus === 'stuck') {
+            if (task.is_stuck) return;
+            handleToggleStuck(task);
+            return;
+        }
+
+        // If it was stuck and we move it elsewhere, reset the stuck status atomically
+        const additionalFields = (task.is_stuck && newStatus !== 'stuck') ? { is_stuck: false } : {};
+        
+        await executeTaskMove(taskId, newStatus, additionalFields);
     };
 
-    const executeTaskMove = async (taskId: number, newStatus: string) => {
+    const handleToggleStuck = async (task: Task, forceState?: boolean) => {
+        const newStuckState = forceState !== undefined ? forceState : !task.is_stuck;
+        
         // Optimistic update
         setData((prev: any) => ({
             ...prev,
-            tasks: prev.tasks.map((t: Task) => t.id === taskId ? { ...t, status: newStatus as any } : t)
+            tasks: prev.tasks.map((t: Task) => t.id === task.id ? { ...t, is_stuck: newStuckState } : t)
         }));
 
         try {
-            await api.updateTask(taskId, { status: newStatus });
+            const res = await api.post<{ ok: boolean, task: Task }>(`/tasks/${task.id}/toggle-stuck`, { is_stuck: newStuckState });
+            addToast(newStuckState ? "Task marked as stuck." : "Task marked as unstuck.", "success");
+            
+            if (res.task) {
+                setData((prev: any) => ({
+                    ...prev,
+                    tasks: prev.tasks.map((t: Task) => t.id === task.id ? res.task : t)
+                }));
+            }
+
+            // Trigger the stuck decision tree if marked as stuck
+            if (newStuckState) {
+                setTaskToEdit(res.task || task);
+                setShowStuckModal(true);
+            }
+        } catch (err) {
+            console.error("Failed to toggle stuck state", err);
+            // Revert
+            loadTeamContext();
+            addToast("Failed to update task state.", "error");
+        }
+    };
+
+    const executeTaskMove = async (taskId: number, newStatus: string, additionalFields: any = {}) => {
+        // Optimistic update
+        setData((prev: any) => ({
+            ...prev,
+            tasks: prev.tasks.map((t: Task) => t.id === taskId ? { ...t, status: newStatus as any, ...additionalFields } : t)
+        }));
+
+        try {
+            await api.updateTask(taskId, { status: newStatus, ...additionalFields });
             setTimelineRefresh(prev => prev + 1);
         } catch (err) {
             console.error("Failed to move task", err);
@@ -235,6 +279,17 @@ export const StudentProjectBoard: React.FC = () => {
                     onSkip={handleReflectionSkip}
                     transitionType={reflectionTransition}
                     taskTitle={reflectionTask.title}
+                />
+            )}
+
+            {showStuckModal && taskToEdit && (
+                <StuckTaskModal
+                    task={taskToEdit}
+                    onClose={() => setShowStuckModal(false)}
+                    onResolved={() => {
+                        setShowStuckModal(false);
+                        loadTeamContext();
+                    }}
                 />
             )}
 

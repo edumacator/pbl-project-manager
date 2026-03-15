@@ -15,6 +15,7 @@ interface TeamKanbanProps {
 const COLUMNS = [
     { id: 'todo', title: 'To Do' },
     { id: 'doing', title: 'In Progress' },
+    { id: 'stuck', title: 'Stuck' },
     { id: 'done', title: 'Done' }
 ];
 
@@ -48,11 +49,19 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                     <h3 className="font-semibold text-gray-700 mb-4 flex items-center justify-between">
                         {column.title}
                         <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-xs">
-                            {tasks.filter(t => t.status === column.id).length}
+                            {tasks.filter(t => {
+                                if (t.parent_task_id) return false;
+                                if (column.id === 'stuck') return t.is_stuck;
+                                return t.status === column.id && !t.is_stuck;
+                            }).length}
                         </span>
                     </h3>
                     <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                        {tasks.filter(t => t.status === column.id).map(task => {
+                        {tasks.filter(t => {
+                            if (t.parent_task_id) return false;
+                            if (column.id === 'stuck') return t.is_stuck;
+                            return t.status === column.id && !t.is_stuck;
+                        }).map(task => {
                             const isOwner = task.assignee_id === user?.id;
                             return (
                                 <div
@@ -67,7 +76,7 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                                             addToast("You can only move tasks assigned to you.", 'error');
                                         }
                                     }}
-                                    className={`bg-white p-4 rounded-lg shadow-sm border ${!task.is_completable && column.id !== 'done' ? 'border-l-4 border-l-amber-400 border-y-gray-200 border-r-gray-200' : 'border-gray-200'} ${(isOwner || user?.role === 'teacher' || user?.role === 'admin') ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:bg-gray-50'} transition-all`}
+                                    className={`bg-white p-4 rounded-lg shadow-sm border ${column.id === 'stuck' ? 'border-amber-400 bg-amber-50/30' : (!task.is_completable && column.id !== 'done' ? 'border-l-4 border-l-amber-400 border-y-gray-200 border-r-gray-200' : 'border-gray-200')} ${(isOwner || user?.role === 'teacher' || user?.role === 'admin') ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:bg-gray-50'} transition-all`}
                                     onClick={() => onTaskClick?.(task)}
                                     title={!task.is_completable ? "Critique Required before Done" : ""}
                                 >
@@ -83,10 +92,18 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                                                 </span>
                                             )}
                                             {task.checklist_summary && task.checklist_summary.total > 0 && (
-                                                <div className="flex items-center gap-1 text-[10px] font-medium text-gray-500">
+                                                <div className="flex items-center gap-1 text-[10px] font-medium text-gray-500" title="Checklist Items">
                                                     <ListChecks className={`w-3 h-3 ${task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-500' : 'text-gray-400'}`} />
                                                     <span className={task.checklist_summary.completed === task.checklist_summary.total ? 'text-green-600' : ''}>
                                                         {task.checklist_summary.completed}/{task.checklist_summary.total}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {task.subtask_count !== undefined && task.subtask_count > 0 && (
+                                                <div className="flex items-center gap-1 text-[10px] font-medium text-gray-500" title="Subtasks Progress">
+                                                    <span className="bg-indigo-50 text-indigo-600 px-1 rounded font-bold uppercase text-[8px]">Subtasks</span>
+                                                    <span className={task.completed_subtask_count === task.subtask_count ? 'text-indigo-600' : ''}>
+                                                        {task.completed_subtask_count || 0}/{task.subtask_count}
                                                     </span>
                                                 </div>
                                             )}
