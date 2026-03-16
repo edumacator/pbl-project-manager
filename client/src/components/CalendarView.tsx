@@ -267,17 +267,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
           )}
 
-          <div className="relative group mr-2">
+          <div className="relative group mr-2 z-10">
             <span className="text-xs font-semibold text-amber-600 cursor-help flex items-center gap-1 bg-amber-50 px-2 py-2 rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors">
               <Info size={14} />
               Snapshot Warning
             </span>
-            <div className="absolute bottom-full mb-2 right-0 w-64 p-3 bg-white border border-slate-200 shadow-xl rounded-lg text-xs text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[12000] ring-1 ring-slate-900/5">
+            <div className="absolute top-full mt-2 right-0 w-64 p-3 bg-white border border-slate-200 shadow-xl rounded-lg text-xs text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[20000] ring-1 ring-slate-900/5">
               <p className="font-bold text-amber-900 mb-1 text-[11px] uppercase tracking-wider">ICS Snapshot Notice</p>
               <p className="leading-relaxed">
                 ICS files are <strong>static snapshots</strong>. They will <strong>not update automatically</strong> in your external calendar if deadlines change in the app.
               </p>
-              <div className="absolute -bottom-1 right-8 w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45"></div>
+              <div className="absolute -top-1 right-8 w-2 h-2 bg-white border-l border-t border-slate-200 rotate-45"></div>
             </div>
           </div>
 

@@ -28,7 +28,7 @@ class ProjectService
             $data['title'],
             $data['driving_question'],
             $data['description'] ?? null,
-            $data['teacher_id'] ?? null,
+            $data['author_id'] ?? null,
             $data['due_date'] ?? null,
             [], // classes
             null, // id
@@ -83,12 +83,9 @@ class ProjectService
         return [];
     }
 
-    public function getProjectsByTeacher(int $teacherId, bool $includeDeleted = false): array
+    public function getProjectsByAuthor(int $authorId, bool $includeDeleted = false): array
     {
-        if (method_exists($this->projectRepo, 'findByTeacherId')) {
-            return $this->projectRepo->findByTeacherId($teacherId, $includeDeleted);
-        }
-        return [];
+        return $this->projectRepo->findByAuthorId($authorId, $includeDeleted);
     }
 
     public function getProjectsByStudent(int $studentId, bool $includeDeleted = false): array

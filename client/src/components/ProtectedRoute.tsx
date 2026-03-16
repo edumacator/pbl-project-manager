@@ -22,7 +22,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) 
         // If the user is an admin but the route doesn't allow admins (e.g. student-only), redirect to admin dashboard
         if ((user.role as any) === 'admin') return <Navigate to="/admin/dashboard" replace />;
         // For others, redirect to their home base
-        return <Navigate to={user.role === 'teacher' ? '/teacher/dashboard' : '/student/today'} replace />;
+        return <Navigate to={user.role === 'teacher' || (user.role as any) === 'admin' ? '/teacher/dashboard' : '/student/today'} replace />;
     }
 
     return <Outlet />;
