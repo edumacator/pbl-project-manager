@@ -18,15 +18,15 @@ class ProjectRepository implements ProjectRepositoryInterface
     public function create(Project $project): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO projects (title, driving_question, description, teacher_id, due_date, requires_reflection, requires_milestone_reflection, require_critique, default_tasks)
-            VALUES (:title, :driving_question, :description, :teacher_id, :due_date, :requires_reflection, :requires_milestone_reflection, :require_critique, :default_tasks)
+            INSERT INTO projects (title, driving_question, description, author_id, due_date, requires_reflection, requires_milestone_reflection, require_critique, default_tasks)
+            VALUES (:title, :driving_question, :description, :author_id, :due_date, :requires_reflection, :requires_milestone_reflection, :require_critique, :default_tasks)
         ");
 
         $stmt->execute([
             ':title' => $project->title,
             ':driving_question' => $project->drivingQuestion,
             ':description' => $project->description,
-            ':teacher_id' => $project->teacherId,
+            ':author_id' => $project->authorId,
             ':due_date' => $project->dueDate,
             ':requires_reflection' => $project->requiresReflection ? 1 : 0,
             ':requires_milestone_reflection' => $project->requiresMilestoneReflection ? 1 : 0,
@@ -113,17 +113,17 @@ class ProjectRepository implements ProjectRepositoryInterface
         return array_map([$this, 'mapRowToProject'], $rows);
     }
 
-    public function findByTeacherId(int $teacherId, bool $includeDeleted = false): array
+    public function findByAuthorId(int $authorId, bool $includeDeleted = false): array
     {
-        // A teacher can see projects they created (teacher_id = :teacher_id)
-        // OR projects assigned to classes where they are the teacher.
+        // An author can see projects they created (author_id = :author_id)
+        // OR projects assigned to classes where they are the staff.
         // We use DISTINCT to avoid duplicates if a project is both created by them AND assigned to their class.
         $sql = "
             SELECT DISTINCT p.* 
             FROM projects p
             LEFT JOIN project_classes pc ON p.id = pc.project_id
             LEFT JOIN classes c ON pc.class_id = c.id
-            WHERE (p.teacher_id = :teacher_id OR c.teacher_id = :class_teacher_id)
+            WHERE (p.author_id = :author_id OR c.staff_id = :class_staff_id)
         ";
 
         if (!$includeDeleted) {
@@ -132,8 +132,8 @@ class ProjectRepository implements ProjectRepositoryInterface
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
-            ':teacher_id' => $teacherId,
-            ':class_teacher_id' => $teacherId
+            ':author_id' => $authorId,
+            ':class_staff_id' => $authorId
         ]);
         $rows = $stmt->fetchAll();
 
@@ -173,7 +173,7 @@ class ProjectRepository implements ProjectRepositoryInterface
             $row['title'],
             $row['driving_question'],
             $row['description'] ?? null,
-            $row['teacher_id'] ? (int) $row['teacher_id'] : null,
+            $row['author_id'] ? (int) $row['author_id'] : null,
             $row['due_date'] ?? null,
             $classes,
             $id,

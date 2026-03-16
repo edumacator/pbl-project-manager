@@ -76,7 +76,7 @@ class CalendarService
                 if ($user->role === 'admin') {
                     $projects = $this->projectRepo->findAll();
                 } else {
-                    $projects = $this->projectRepo->findByTeacherId($user->id);
+                    $projects = $this->projectRepo->findByAuthorId($user->id);
                 }
                 
                 foreach ($projects as $project) {

@@ -332,7 +332,7 @@ if ($uri === '/api/v1/projects' && $_SERVER['REQUEST_METHOD'] === 'GET') {
             $projects = $projectService->getProjectsByClass($classId, $includeDeleted);
         } else if ($currentUser) {
             if (in_array($currentUser->role, ['teacher', 'admin'])) {
-                $projects = $projectService->getProjectsByTeacher($currentUser->id, $includeDeleted);
+                $projects = $projectService->getProjectsByAuthor($currentUser->id, $includeDeleted);
             } else if ($currentUser->role === 'student') {
                 $projects = $projectService->getProjectsByStudent($currentUser->id, $includeDeleted);
             } else {
@@ -1533,7 +1533,7 @@ if ($uri === '/api/v1/classes') {
         $teacherId = $currentUser->id;
         $includeDeleted = ($_GET['include_deleted'] ?? 'false') === 'true';
         try {
-            $classes = $classService->getClassesByTeacher($teacherId, $includeDeleted);
+            $classes = $classService->getClassesByStaff($teacherId, $includeDeleted);
             echo json_encode(['ok' => true, 'data' => $classes]);
         } catch (\Exception $e) {
             http_response_code(500);

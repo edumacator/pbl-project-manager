@@ -22,10 +22,10 @@ class ClassRepository implements ClassRepositoryInterface
     public function create(ClassEntity $class): int
     {
         $joinCode = substr(md5(uniqid(mt_rand(), true)), 0, 6);
-        $stmt = $this->pdo->prepare("INSERT INTO classes (name, teacher_id, join_code) VALUES (:name, :teacher_id, :join_code)");
+        $stmt = $this->pdo->prepare("INSERT INTO classes (name, staff_id, join_code) VALUES (:name, :staff_id, :join_code)");
         $stmt->execute([
             ':name' => $class->name,
-            ':teacher_id' => $class->teacherId,
+            ':staff_id' => $class->staffId,
             ':join_code' => $joinCode
         ]);
         return (int) $this->pdo->lastInsertId();
@@ -63,7 +63,7 @@ class ClassRepository implements ClassRepositoryInterface
 
         return new ClassEntity(
             $row['name'],
-            (int) $row['teacher_id'],
+            (int) $row['staff_id'],
             (int) $row['id'],
             $row['created_at'],
             $row['deleted_at'] ?? null,
@@ -82,7 +82,7 @@ class ClassRepository implements ClassRepositoryInterface
 
         return new ClassEntity(
             $row['name'],
-            (int) $row['teacher_id'],
+            (int) $row['staff_id'],
             (int) $row['id'],
             $row['created_at'],
             $row['deleted_at'] ?? null,
@@ -90,23 +90,23 @@ class ClassRepository implements ClassRepositoryInterface
         );
     }
 
-    public function findByTeacherId(int $teacherId, bool $includeDeleted = false): array
+    public function findByStaffId(int $staffId, bool $includeDeleted = false): array
     {
-        $sql = "SELECT * FROM classes WHERE teacher_id = :teacher_id";
+        $sql = "SELECT * FROM classes WHERE staff_id = :staff_id";
         if (!$includeDeleted) {
             $sql .= " AND deleted_at IS NULL";
         }
         $sql .= " ORDER BY name ASC";
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([':teacher_id' => $teacherId]);
+        $stmt->execute([':staff_id' => $staffId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $classes = [];
         foreach ($rows as $row) {
             $classes[] = new ClassEntity(
                 $row['name'],
-                (int) $row['teacher_id'],
+                (int) $row['staff_id'],
                 (int) $row['id'],
                 $row['created_at'],
                 $row['deleted_at'] ?? null,
@@ -121,7 +121,7 @@ class ClassRepository implements ClassRepositoryInterface
         $sql = "
             SELECT c.*, u.name as teacher_name 
             FROM classes c
-            JOIN users u ON c.teacher_id = u.id
+            JOIN users u ON c.staff_id = u.id
             WHERE c.deleted_at IS NULL
             ORDER BY u.name ASC, c.name ASC
         ";
@@ -133,7 +133,7 @@ class ClassRepository implements ClassRepositoryInterface
             $classes[] = [
                 'class' => new ClassEntity(
                     $row['name'],
-                    (int) $row['teacher_id'],
+                    (int) $row['staff_id'],
                     (int) $row['id'],
                     $row['created_at'],
                     $row['deleted_at'] ?? null,

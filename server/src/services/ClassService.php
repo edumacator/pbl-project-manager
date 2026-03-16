@@ -25,13 +25,13 @@ class ClassService
         $this->projectService = $service;
     }
 
-    public function createClass(string $name, int $teacherId): ClassEntity
+    public function createClass(string $name, int $staffId): ClassEntity
     {
         if (empty($name)) {
             throw new \InvalidArgumentException("Class name is required.");
         }
 
-        $class = new ClassEntity($name, $teacherId);
+        $class = new ClassEntity($name, $staffId);
         $id = $this->classRepo->create($class);
         $class->id = $id;
 
@@ -58,9 +58,9 @@ class ClassService
         return $this->classRepo->restore($id);
     }
 
-    public function getClassesByTeacher(int $teacherId, bool $includeDeleted = false): array
+    public function getClassesByStaff(int $staffId, bool $includeDeleted = false): array
     {
-        return $this->classRepo->findByTeacherId($teacherId, $includeDeleted);
+        return $this->classRepo->findByStaffId($staffId, $includeDeleted);
     }
 
     public function getClassDetails(int $id, bool $includeDeleted = false): ?array

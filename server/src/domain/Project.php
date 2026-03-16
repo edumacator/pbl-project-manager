@@ -10,7 +10,7 @@ class Project implements JsonSerializable
     public string $title;
     public string $drivingQuestion;
     public ?string $description;
-    public ?int $teacherId;
+    public ?int $authorId;
     public ?string $dueDate; // Format YYYY-MM-DD
     public array $classes;
     public ?int $classId; // Contextual class ID
@@ -40,7 +40,7 @@ class Project implements JsonSerializable
         $this->title = $title;
         $this->drivingQuestion = $drivingQuestion;
         $this->description = $description;
-        $this->teacherId = $teacherId;
+        $this->authorId = $teacherId;
         $this->dueDate = $dueDate;
         $this->classes = $classes;
         $this->id = $id;
@@ -60,7 +60,7 @@ class Project implements JsonSerializable
             'title' => $this->title,
             'driving_question' => $this->drivingQuestion,
             'description' => $this->description,
-            'teacher_id' => $this->teacherId,
+            'author_id' => $this->authorId,
             'due_date' => $this->dueDate,
             'classes' => $this->classes,
             'class_id' => $this->classId,

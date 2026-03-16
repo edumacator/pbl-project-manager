@@ -17,14 +17,14 @@ class AnalyticsService
     /**
      * Get students with 1 or more overdue tasks in projects the teacher owns.
      */
-    public function getAtRiskStudents(int $teacherId): array
+    public function getAtRiskStudents(int $authorId): array
     {
         $sql = "
             SELECT u.id as student_id, u.name, COUNT(t.id) as overdue_count
             FROM users u
             JOIN tasks t ON t.assignee_id = u.id
             JOIN projects p ON t.project_id = p.id
-            WHERE p.teacher_id = :teacher_id
+            WHERE p.author_id = :author_id
               AND t.status != 'done'
               AND t.due_date IS NOT NULL
               AND t.due_date < NOW()
@@ -35,14 +35,14 @@ class AnalyticsService
         ";
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([':teacher_id' => $teacherId]);
+        $stmt->execute([':author_id' => $authorId]);
         return $stmt->fetchAll();
     }
 
     /**
      * Get teams with overdue tasks OR tasks stuck in 'in_progress' for > 3 days.
      */
-    public function getStuckTeams(int $teacherId): array
+    public function getStuckTeams(int $authorId): array
     {
         $sql = "
             SELECT 
@@ -61,16 +61,16 @@ class AnalyticsService
             FROM teams tm
             JOIN projects p ON tm.project_id = p.id
             JOIN tasks t ON t.team_id = tm.id
-            WHERE p.teacher_id = :teacher_id
+            WHERE p.author_id = :author_id
               AND t.deleted_at IS NULL
               AND p.deleted_at IS NULL
             GROUP BY tm.id, tm.name, p.title, p.id
             HAVING overdue_tasks > 0 OR stale_tasks > 0
             ORDER BY (overdue_tasks + stale_tasks) DESC
         ";
-
+ 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([':teacher_id' => $teacherId]);
+        $stmt->execute([':author_id' => $authorId]);
         return $stmt->fetchAll();
     }
 
