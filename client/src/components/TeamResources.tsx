@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
-import { Link as LinkIcon, ExternalLink, Plus, Book, FileText, X, Edit2, Trash2 } from 'lucide-react';
+import { Link2, ExternalLink, Plus, Book, FileText, X, Edit2, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ProjectResource {
@@ -31,7 +31,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
     const { addToast } = useToast();
 
     // Form state
-    const [type, setType] = useState<'link' | 'file'>('link');
+    const [type, setType] = useState<'link' | 'file'>('file');
     const [url, setUrl] = useState('');
     const [title, setTitle] = useState('');
     const [file, setFile] = useState<File | null>(null);
@@ -39,11 +39,17 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingResource, setEditingResource] = useState<ProjectResource | null>(null);
+    
+    const cleanUrl = (input: string) => {
+        // Strip out any redundant protocols
+        return input.replace(/^(https?:\/\/)+/g, '').trim();
+    };
 
     const handleEditResourceClick = (res: ProjectResource) => {
         setEditingResource(res);
         setTitle(res.title);
-        setUrl(res.url);
+        // Strip protocol for the edit field
+        setUrl(cleanUrl(res.url));
         setType(res.type as 'link' | 'file');
         setFile(null);
         setShareWithProject(res.team_id === null);
@@ -98,22 +104,41 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
         e.preventDefault();
 
         if (type === 'link' && !url.trim()) return;
-        if (type === 'file' && !file) return;
+        if (type === 'file' && !file && !editingResource) return;
 
         try {
             setIsSubmitting(true);
             let resData;
 
             if (editingResource) {
-                resData = await api.put(`/resources/${editingResource.id}`, {
-                    title: title.trim(),
-                    url: url.trim() || editingResource.url,
-                    type: type,
-                    team_id: shareWithProject ? null : teamId
-                });
+                if (type === 'file' && file) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('title', title.trim() || file.name);
 
-                if (resData && (resData as any).data?.resource) {
-                    const updatedRes = (resData as any).data.resource;
+                    const uploadRes = await fetch(`${API_BASE}/resources/${editingResource.id}/upload`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                        },
+                        body: formData
+                    }).then(async (res) => {
+                        if (!res.ok) throw new Error('Replacement upload failed');
+                        return res.json();
+                    });
+                    resData = uploadRes.data;
+                } else {
+                    const finalUrl = `https://${cleanUrl(url)}`;
+                    resData = await api.put(`/resources/${editingResource.id}`, {
+                        title: title.trim(),
+                        url: finalUrl,
+                        type: type,
+                        team_id: shareWithProject ? null : teamId
+                    });
+                }
+
+                if (resData && resData.resource) {
+                    const updatedRes = resData.resource;
                     setTeamResources(prev => prev.filter(r => r.id !== updatedRes.id));
                     setProjectResources(prev => prev.filter(r => r.id !== updatedRes.id));
 
@@ -142,7 +167,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                     formData.append('team_id', teamId.toString());
                 }
 
-                resData = await fetch(`${API_BASE}/projects/${projectId}/resources/upload`, {
+                const uploadRes = await fetch(`${API_BASE}/projects/${projectId}/resources/upload`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
@@ -152,18 +177,20 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                     if (!res.ok) throw new Error('Upload failed');
                     return res.json();
                 });
+                resData = uploadRes.data;
             } else {
+                const finalUrl = `https://${cleanUrl(url)}`;
                 const response = await api.post(`/projects/${projectId}/resources`, {
                     team_id: shareWithProject ? null : teamId,
                     title: title.trim(),
-                    url: url.trim(),
+                    url: finalUrl,
                     type: 'link'
                 });
-                resData = { data: { resource: response } };
+                resData = response;
             }
 
-            if (resData && (resData as any).data?.resource) {
-                const newRes = (resData as any).data.resource;
+            if (resData && resData.resource) {
+                const newRes = resData.resource;
                 if (shareWithProject) {
                     setProjectResources([newRes, ...projectResources]);
                 } else {
@@ -246,7 +273,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                                                 >
                                                     <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase px-2 py-0.5 rounded-bl-lg tracking-wider">Project Library</div>
                                                     <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-lg mr-4 shrink-0">
-                                                        {res.type === 'file' ? <FileText className="w-5 h-5" /> : <LinkIcon className="w-5 h-5" />}
+                                                        {res.type === 'file' ? <FileText className="w-5 h-5" /> : <Link2 className="w-5 h-5" />}
                                                     </div>
                                                     <div className="flex-1 min-w-0 mt-1">
                                                         <h4 className="text-gray-900 font-medium text-sm truncate group-hover:text-emerald-700 relative pr-6">
@@ -290,7 +317,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                                                     className="flex-1 min-w-0 flex items-start"
                                                 >
                                                     <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-lg mr-4 shrink-0">
-                                                        {res.type === 'file' ? <FileText className="w-5 h-5" /> : <LinkIcon className="w-5 h-5" />}
+                                                        {res.type === 'file' ? <FileText className="w-5 h-5" /> : <Link2 className="w-5 h-5" />}
                                                     </div>
                                                     <div className="flex-1 min-w-0 mt-1">
                                                         <h4 className="text-gray-900 font-medium text-sm truncate group-hover:text-indigo-700 relative pr-6">
@@ -347,7 +374,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
                                                     <div className="shrink-0 flex items-center justify-center p-1.5 rounded-md bg-gray-100 text-gray-500 mr-3">
-                                                        {res.type === 'file' ? <FileText className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+                                                        {res.type === 'file' ? <FileText className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
                                                     </div>
                                                     <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-indigo-600 hover:text-indigo-900 truncate max-w-xs block">
                                                         {getResourceLabel(res)}
@@ -378,7 +405,7 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h2 className="text-lg font-bold text-gray-900">Add a New Resource</h2>
+                            <h2 className="text-lg font-bold text-gray-900">{editingResource ? 'Edit Resource' : 'Add a New Resource'}</h2>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
                                 <X className="w-5 h-5" />
                             </button>
@@ -386,37 +413,78 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                         <form onSubmit={handleSubmit} className="p-6">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Type</label>
-                                    <select
-                                        value={type}
-                                        onChange={(e) => setType(e.target.value as 'link' | 'file')}
-                                        className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                                    >
-                                        <option value="link">External Link</option>
-                                        <option value="file">Document/File</option>
-                                    </select>
+                                    <label className="block text-xs font-medium text-gray-500 mb-2 ml-1">Resource Type</label>
+                                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                                        <button
+                                            type="button"
+                                            onClick={() => setType('file')}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${type === 'file' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            <FileText className="w-4 h-4" />
+                                            Document
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setType('link')}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${type === 'link' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            <Link2 className="w-4 h-4" />
+                                            Link
+                                        </button>
+                                    </div>
                                 </div>
                                 {type === 'link' ? (
                                     <div>
                                         <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">URL / Link Location *</label>
-                                        <input
-                                            type="url"
-                                            required
-                                            value={url}
-                                            onChange={(e) => setUrl(e.target.value)}
-                                            placeholder="https://..."
-                                            className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        />
+                                        <div className="flex">
+                                            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                                                https://
+                                            </span>
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                value={url} 
+                                                onChange={(e) => setUrl(cleanUrl(e.target.value))} 
+                                                placeholder="example.com/research"
+                                                className="flex-1 text-sm p-3 border border-gray-300 rounded-none rounded-r-md focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            />
+                                        </div>
                                     </div>
                                 ) : (
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Upload File *</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
+                                            {editingResource ? 'Replace File (Optional)' : 'Upload File *'}
+                                        </label>
+                                        {editingResource && editingResource.type === 'file' && (
+                                            <div className="mb-3 p-2.5 bg-indigo-50 rounded-lg border border-indigo-100 flex items-center justify-between shadow-sm">
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    <div className="bg-indigo-100 p-1.5 rounded-md">
+                                                        <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                                    </div>
+                                                    <span className="text-[11px] text-indigo-800 truncate font-semibold">Current: {editingResource.url.split('/').pop()}</span>
+                                                </div>
+                                                <a 
+                                                    href={editingResource.url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 underline font-black bg-white px-2 py-1 rounded border border-indigo-200 shadow-sm ml-2 shrink-0 transition-colors"
+                                                >
+                                                    View Current
+                                                </a>
+                                            </div>
+                                        )}
                                         <input
                                             type="file"
-                                            required
+                                            required={!editingResource}
                                             onChange={(e) => setFile(e.target.files?.[0] || null)}
-                                            className="w-full text-sm p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                            className="w-full text-sm p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm"
                                         />
+                                        <p className="text-[10px] text-gray-500 mt-1.5 ml-1 flex items-center gap-1">
+                                            <span className="inline-block w-1 h-1 bg-gray-400 rounded-full"></span>
+                                            {editingResource 
+                                                ? "New upload will permanently replace existing file." 
+                                                : "Document will be shared with the team/project."}
+                                        </p>
                                     </div>
                                 )}
                                 <div>
@@ -452,10 +520,10 @@ export const TeamResources: React.FC<TeamResourcesProps> = ({ teamId, projectId 
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={isSubmitting || (type === 'link' ? !url.trim() : !file)}
+                                    disabled={isSubmitting || (type === 'link' ? !url.trim() : (!file && !editingResource))}
                                     className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center shadow-sm"
                                 >
-                                    {isSubmitting ? 'Adding...' : 'Add Resource'}
+                                    {isSubmitting ? 'Saving...' : (editingResource ? 'Save Changes' : 'Add Resource')}
                                 </button>
                             </div>
                         </form>

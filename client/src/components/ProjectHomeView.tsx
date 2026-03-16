@@ -41,7 +41,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
     const [loadingStudents, setLoadingStudents] = useState(false);
     const [newResourceTitle, setNewResourceTitle] = useState('');
     const [newResourceUrl, setNewResourceUrl] = useState('');
-    const [newResourceType, setNewResourceType] = useState<'link' | 'file'>('link');
+    const [newResourceType, setNewResourceType] = useState<'link' | 'file'>('file');
     const [newResourceDescription, setNewResourceDescription] = useState('');
     const [showResourceModal, setShowResourceModal] = useState(false);
     const [editingResource, setEditingResource] = useState<ProjectResource | null>(null);
@@ -147,10 +147,16 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
         }
     };
 
+    const cleanUrl = (input: string) => {
+        // Strip out any redundant protocols
+        return input.replace(/^(https?:\/\/)+/g, '').trim();
+    };
+
     const handleEditResourceClick = (res: ProjectResource) => {
         setEditingResource(res);
         setNewResourceTitle(res.title);
-        setNewResourceUrl(res.url);
+        // Strip protocol for the edit field
+        setNewResourceUrl(cleanUrl(res.url));
         setNewResourceType(res.type as 'link' | 'file');
         setNewResourceDescription(res.description || '');
         setNewResourceFile(null);
@@ -190,20 +196,21 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                     formData.append('title', newResourceTitle);
                     if (newResourceDescription) formData.append('description', newResourceDescription);
 
-                    // Note: update with file is tricky on the backend without a specific upload endpoint for PUT
-                    // We'll rely on deleting and recreating or just updating metadata for now.
-                    // For simplicity, if editing and a new file is provided, we just update metadata in this version or warn user.
-                    // Let's just update the metadata for now if they edit a file:
-                    await api.put(`/resources/${editingResource.id}`, {
-                        title: newResourceTitle,
-                        url: newResourceUrl,
-                        type: newResourceType,
-                        description: newResourceDescription || null
+                    await fetch(`${API_BASE}/resources/${editingResource.id}/upload`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                        },
+                        body: formData
+                    }).then(async (res) => {
+                        if (!res.ok) throw new Error('Replacement upload failed');
+                        return res.json();
                     });
                 } else {
+                    const finalUrl = `https://${cleanUrl(newResourceUrl)}`;
                     await api.put(`/resources/${editingResource.id}`, {
                         title: newResourceTitle,
-                        url: newResourceUrl,
+                        url: finalUrl,
                         type: newResourceType,
                         description: newResourceDescription || null
                     });
@@ -228,9 +235,10 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                         return res.json();
                     });
                 } else {
+                    const finalUrl = `https://${cleanUrl(newResourceUrl)}`;
                     await api.post(`/projects/${project.id}/resources`, {
                         title: newResourceTitle,
-                        url: newResourceUrl,
+                        url: finalUrl,
                         type: newResourceType,
                         description: newResourceDescription || null
                     });
@@ -763,21 +771,73 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                                     <input type="text" value={newResourceTitle} onChange={e => setNewResourceTitle(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                                    <select value={newResourceType} onChange={e => setNewResourceType(e.target.value as any)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none">
-                                        <option value="link">External Link</option>
-                                        <option value="file">Document/File</option>
-                                    </select>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Resource Type</label>
+                                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewResourceType('file')}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${newResourceType === 'file' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            <FileText className="w-4 h-4" />
+                                            Document
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewResourceType('link')}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${newResourceType === 'link' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            <Link2 className="w-4 h-4" />
+                                            Link
+                                        </button>
+                                    </div>
                                 </div>
-                                {newResourceType === 'link' || editingResource ? (
+                                {newResourceType === 'link' ? (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">URL / Link</label>
-                                        <input type="url" value={newResourceUrl} onChange={e => setNewResourceUrl(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none" required={newResourceType === 'link'} />
+                                        <div className="flex">
+                                            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                                                https://
+                                            </span>
+                                            <input 
+                                                type="text" 
+                                                value={newResourceUrl} 
+                                                onChange={e => setNewResourceUrl(cleanUrl(e.target.value))} 
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-none rounded-r-md focus:ring-1 focus:ring-indigo-500 outline-none" 
+                                                required 
+                                                placeholder="example.com/research"
+                                            />
+                                        </div>
                                     </div>
                                 ) : (
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Upload File</label>
-                                        <input type="file" onChange={e => setNewResourceFile(e.target.files?.[0] || null)} className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none bg-white" required={!editingResource} />
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{editingResource ? 'Replace File (Optional)' : 'Upload File'}</label>
+                                        {editingResource && (
+                                            <div className="mb-2 p-2 bg-indigo-50 rounded-md border border-indigo-100 flex items-center justify-between">
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                                    <span className="text-[11px] text-indigo-700 truncate font-medium">Current: {newResourceUrl.split('/').pop()}</span>
+                                                </div>
+                                                <a 
+                                                    href={newResourceUrl} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 underline font-bold shrink-0 ml-2"
+                                                >
+                                                    View File
+                                                </a>
+                                            </div>
+                                        )}
+                                        <input 
+                                            type="file" 
+                                            onChange={e => setNewResourceFile(e.target.files?.[0] || null)} 
+                                            className="w-full px-3 py-2 border rounded-md focus:ring-1 focus:ring-indigo-500 outline-none bg-white text-sm" 
+                                            required={!editingResource} 
+                                        />
+                                        <p className="text-[10px] text-gray-500 mt-1 italic">
+                                            {editingResource 
+                                                ? "Uploading a new file will permanently replace the existing one. Leave empty to keep current file." 
+                                                : "Upload a document to share with the project."}
+                                        </p>
                                     </div>
                                 )}
                                 <div>

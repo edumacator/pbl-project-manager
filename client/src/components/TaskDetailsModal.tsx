@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Project, TaskReflection, ProjectResource, TaskMessage } from '../types';
-import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks, Download } from 'lucide-react';
+import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, Link2, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks, Download } from 'lucide-react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,7 +30,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const [newResourceTitle, setNewResourceTitle] = useState('');
     const [newResourceUrl, setNewResourceUrl] = useState('');
     const [file, setFile] = useState<File | null>(null);
-    const [uploadMode, setUploadMode] = useState(false);
+    const [newResourceType, setNewResourceType] = useState<'link' | 'file'>('file');
     const [loading, setLoading] = useState(false);
     const [localTask, setLocalTask] = useState<Task | null>(task);
     const { addToast } = useToast();
@@ -40,6 +40,11 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const [checklist, setChecklist] = useState<any[]>([]);
     const [newChecklistItem, setNewChecklistItem] = useState('');
     const [showChecklist, setShowChecklist] = useState(false);
+    
+    const cleanUrl = (input: string) => {
+        // Strip out any redundant protocols
+        return input.replace(/^(https?:\/\/)+/g, '').trim();
+    };
     const [localPriority, setLocalPriority] = useState<'P1' | 'P2' | 'P3'>(task?.priority || 'P3');
 
     useEffect(() => {
@@ -142,11 +147,11 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const handleAddResource = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!task) return;
-        if (!uploadMode && (!newResourceTitle.trim() || !newResourceUrl.trim())) return;
-        if (uploadMode && !file) return;
+        if (newResourceType === 'link' && (!newResourceTitle.trim() || !newResourceUrl.trim())) return;
+        if (newResourceType === 'file' && !file) return;
 
         try {
-            if (uploadMode && file) {
+            if (newResourceType === 'file' && file) {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('title', newResourceTitle.trim() || file.name);
@@ -163,10 +168,11 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                     return res.json();
                 });
             } else {
+                const finalUrl = `https://${cleanUrl(newResourceUrl)}`;
                 await api.post(`/projects/${project.id}/resources`, {
                     task_id: task.id,
                     title: newResourceTitle,
-                    url: newResourceUrl,
+                    url: finalUrl,
                     type: 'link'
                 });
             }
@@ -174,7 +180,6 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
             setNewResourceUrl('');
             setFile(null);
             fetchData();
-            setUploadMode(false);
             addToast("Resource added successfully", "success");
         } catch (err) {
             console.error(err);
@@ -652,44 +657,53 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                 <h4 className="text-sm font-medium text-gray-900 mb-4">Attach Resource</h4>
 
                                 <div className="space-y-4">
-                                    <div className="relative flex items-center bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
-                                        {!uploadMode ? (
-                                            <input
-                                                type="text"
-                                                value={newResourceUrl}
-                                                onChange={(e) => setNewResourceUrl(e.target.value)}
-                                                placeholder="Paste a long URL..."
-                                                className="flex-1 text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none"
-                                            />
-                                        ) : (
-                                            <input
-                                                type="file"
-                                                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                                                className="flex-1 text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none max-w-full text-gray-700"
-                                            />
-                                        )}
-                                        <div className="flex items-center px-2">
+                                    <div>
+                                        <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
                                             <button
                                                 type="button"
-                                                onClick={() => setUploadMode(!uploadMode)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm"
+                                                onClick={() => setNewResourceType('file')}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md transition-all ${newResourceType === 'file' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                             >
-                                                {!uploadMode ? (
-                                                    <>
-                                                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                                                        Upload
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                                                        Link
-                                                    </>
-                                                )}
+                                                <FileText className="w-4 h-4" />
+                                                Document
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setNewResourceType('link')}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md transition-all ${newResourceType === 'link' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                            >
+                                                <Link2 className="w-4 h-4" />
+                                                Link
                                             </button>
                                         </div>
+
+                                        {newResourceType === 'link' ? (
+                                            <div className="flex bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+                                                <span className="inline-flex items-center px-3 border-r border-gray-200 bg-gray-100/50 text-gray-500 text-sm">
+                                                    https://
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    value={newResourceUrl}
+                                                    onChange={(e) => setNewResourceUrl(cleanUrl(e.target.value))}
+                                                    placeholder="example.com/research"
+                                                    className="flex-1 text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none"
+                                                    required
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+                                                <input
+                                                    type="file"
+                                                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                                    className="w-full text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none text-gray-700"
+                                                    required
+                                                />
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {(newResourceUrl.length > 0 || uploadMode) && (
+                                    {(newResourceUrl.length > 0 || (newResourceType === 'file' && file)) && (
                                         <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
                                             <label className="block text-xs font-medium text-gray-500 ml-1">Title (Optional)</label>
                                             <input
@@ -705,7 +719,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     <div className="pt-2">
                                         <button
                                             type="submit"
-                                            disabled={(!uploadMode && !newResourceUrl.trim()) || (uploadMode && !file) || loading}
+                                            disabled={(newResourceType === 'link' && !newResourceUrl.trim()) || (newResourceType === 'file' && !file) || loading}
                                             className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
                                         >
                                             Attach Resource
