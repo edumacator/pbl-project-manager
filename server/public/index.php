@@ -1201,6 +1201,88 @@ if (preg_match('#^/api/v1/resources/(\d+)$#', $uri, $matches)) {
     }
 }
 
+// Replace Resource File
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && preg_match('#^/api/v1/resources/(\d+)/upload$#', $uri, $m)) {
+    $resourceId = (int) $m[1];
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Login required']]);
+        exit;
+    }
+
+    $resource = $resourceRepo->findById($resourceId);
+    if (!$resource) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Resource not found']]);
+        exit;
+    }
+
+    if (!in_array($currentUser->role, ['teacher', 'admin']) && $resource->userId !== $currentUser->id) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Unauthorized to update this resource']]);
+        exit;
+    }
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UPLOAD_FAILED', 'message' => 'No file uploaded or upload error']]);
+        exit;
+    }
+
+    $file = $_FILES['file'];
+    $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'zip', 'csv'];
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+    if (!in_array($extension, $allowedExtensions)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'INVALID_FILE_TYPE', 'message' => 'File type not allowed']]);
+        exit;
+    }
+
+    // 1. Delete old file if it was a file type
+    if ($resource->type === 'file' && !empty($resource->url)) {
+        $oldFilePath = __DIR__ . '/..' . $resource->url;
+        if (file_exists($oldFilePath) && is_file($oldFilePath)) {
+            @unlink($oldFilePath);
+        }
+    }
+
+    // 2. Upload new file
+    $filename = uniqid('res_') . '_' . preg_replace('/[^a-zA-Z0-9.\-_]/', '', basename($file['name']));
+    $uploadDir = __DIR__ . '/uploads/resources/';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+
+    $targetPath = $uploadDir . $filename;
+
+    if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+        $newUrl = '/uploads/resources/' . $filename;
+        $updateData = [
+            'url' => $newUrl,
+            'type' => 'file'
+        ];
+        if (!empty($_POST['title'])) {
+            $updateData['title'] = trim($_POST['title']);
+        }
+        if (!empty($_POST['description'])) {
+            $updateData['description'] = trim($_POST['description']);
+        }
+
+        try {
+            $updatedResource = $taskService->updateResource($resourceId, $updateData);
+            echo json_encode(['ok' => true, 'data' => ['resource' => $updatedResource]]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+    } else {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UPLOAD_FAILED', 'message' => 'Failed to move uploaded file']]);
+    }
+    exit;
+}
+
 // Project Q&A
 if (preg_match('#^/api/v1/projects/(\d+)/qna$#', $uri, $matches)) {
     $projectId = (int) $matches[1];
