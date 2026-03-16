@@ -347,7 +347,7 @@ export const StudentProjectBoard: React.FC = () => {
                             project={data.project}
                             currentUser={user}
                             teams={data.team ? [data.team] : []}
-                            tasks={data.tasks || []}
+                            tasks={(data.tasks || []).filter((t: Task) => !t.parent_task_id)}
                             onTeamSelect={() => setActiveTab('board')}
                             onProjectUpdate={() => { }}
                         />
@@ -355,7 +355,7 @@ export const StudentProjectBoard: React.FC = () => {
                     {activeTab === 'board' && (
                         data.team ? (
                             <TeamKanban
-                                tasks={data.tasks}
+                                tasks={data.tasks.filter((t: Task) => !t.parent_task_id)}
                                 onTaskMove={handleTaskMove}
                                 onTaskClaim={handleTaskClaim}
                                 onTaskClick={(task) => setSelectedTask(task)}

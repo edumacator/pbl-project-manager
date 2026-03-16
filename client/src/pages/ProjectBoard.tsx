@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { api, API_BASE } from '../api/client';
-import { Task, Project, Team, User } from '../types';
-import { Plus, Pencil, Trash2, Calendar, Users, ChevronDown, ChevronRight, ExternalLink, UserPlus, UserCheck, Archive, BarChart, Edit2, X } from 'lucide-react';
+import { api } from '../api/client';
+import { Task, Project, User } from '../types';
+import { 
+    Plus, Trash2, Calendar, Users, 
+    ExternalLink, ArrowLeft, BarChart, Clock,
+    Layout as LayoutIcon, Library, Settings
+} from 'lucide-react';
 import { CreateTaskModal } from '../components/CreateTaskModal';
 import { TeamMembersModal } from '../components/TeamMembersModal';
 import { CritiqueModal } from '../components/CritiqueModal';
@@ -29,10 +33,8 @@ const KanbanColumn: React.FC<{
     tasks: Task[];
     onAdd: () => void;
     onDrop: (taskId: number, status: string) => void;
-    onArchive?: (taskId: number) => void;
-    onRestore?: (taskId: number) => void;
     onTaskClick?: (task: Task) => void;
-}> = ({ title, status, tasks, onAdd, onDrop, onArchive, onRestore, onTaskClick }) => {
+}> = ({ title, status, tasks, onAdd, onDrop, onTaskClick }) => {
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -48,41 +50,47 @@ const KanbanColumn: React.FC<{
 
     return (
         <div
-            className="bg-gray-100 p-4 rounded-xl min-w-[300px]"
+            className="flex-shrink-0 w-[300px] sm:w-[320px] bg-gray-100 rounded-xl flex flex-col h-[calc(100vh-280px)] min-h-[400px] snap-center"
             onDragOver={handleDragOver}
             onDrop={handleDrop}
         >
-            <h3 className="font-semibold text-gray-700 mb-4 flex items-center justify-between">
-                {title}
-                <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-xs">{tasks.length}</span>
-            </h3>
-            <div className="space-y-3">
+            <div className="p-4 flex items-center justify-between sticky top-0 bg-gray-100 rounded-t-xl z-20">
+                <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                    {title}
+                    <span className="bg-gray-200 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-bold">{tasks.length}</span>
+                </h3>
+                <button 
+                    onClick={onAdd}
+                    className="p-1 hover:bg-gray-200 rounded-md transition-colors text-gray-500"
+                >
+                    <Plus className="w-4 h-4" />
+                </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
                 {tasks.map(task => (
                     <div
                         key={task.id}
                         draggable
                         onDragStart={(e) => e.dataTransfer.setData("taskId", task.id.toString())}
                         onClick={() => onTaskClick?.(task)}
-                        className={`bg-white p-4 rounded-lg shadow-sm border ${status === 'stuck' ? 'border-amber-400 bg-amber-50/30' : 'border-gray-200'} cursor-move hover:shadow-md transition-shadow ${!task.is_completable && status !== 'done' && status !== 'stuck' ? 'border-l-4 border-l-amber-400' : ''}`}
-                        title={!task.is_completable ? "Critique Required before Done" : ""}
+                        className={`bg-white p-4 rounded-lg shadow-sm border ${task.is_stuck ? 'border-amber-400 bg-amber-50/30' : 'border-gray-200'} cursor-move hover:shadow-md transition-shadow group relative`}
                     >
-                        <div className="font-medium text-gray-900 mb-1 flex justify-between">
-                            <span className="truncate mr-2">{task.title}</span>
-                            {!task.is_completable && (
-                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded h-fit shrink-0">Critique Req.</span>
-                            )}
+                        <div className="font-medium text-gray-900 mb-2 leading-snug pr-4">
+                            {task.title}
                         </div>
+                        
                         {task.priority && (
-                            <div className="mb-2">
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${task.priority === 'P1' ? 'bg-red-50 text-red-600 border-red-100' :
+                            <div className="mb-3">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${
+                                    task.priority === 'P1' ? 'bg-red-50 text-red-600 border-red-100' :
                                     task.priority === 'P2' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                                        'bg-gray-50 text-gray-500 border-gray-100'
-                                    }`}>
+                                    'bg-gray-50 text-gray-500 border-gray-100'
+                                }`}>
                                     {task.priority}
                                 </span>
                             </div>
                         )}
-                        {task.description && <div className="text-gray-500 text-xs mb-3 line-clamp-2">{task.description}</div>}
 
                         {/* Subtask Progress */}
                         {task.subtask_count !== undefined && task.subtask_count > 0 && (
@@ -100,49 +108,26 @@ const KanbanColumn: React.FC<{
                             </div>
                         )}
 
-                        <div className="flex items-center justify-between text-xs text-gray-400 mt-2">
-                            <div className="flex items-center gap-2">
-                                <span>#{task.id}</span>
-                                {task.due_date && (
-                                    <span className="flex items-center gap-1 text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">
-                                        <Calendar className="w-3 h-3" />
-                                        {new Date(task.due_date).toLocaleDateString()}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1">
-                                {task.deleted_at ? (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onRestore?.(task.id); }}
-                                        className="p-1 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                                        title="Restore Task"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" />
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onArchive?.(task.id); }}
-                                        className="p-1 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                        title="Archive Task"
-                                    >
-                                        <Archive className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
+                        <div className="flex items-center justify-between mt-2">
+                            <div className="flex -space-x-1 overflow-hidden">
                                 {task.assignee_id && (
-                                    <div className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-[10px]" title={task.assignee_name || `User ${task.assignee_id}`}>
-                                        {getInitials(task.assignee_name) || `U${task.assignee_id}`}
+                                    <div 
+                                        className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-700"
+                                        title={task.assignee_name}
+                                    >
+                                        {getInitials(task.assignee_name)}
                                     </div>
                                 )}
                             </div>
+                            {task.due_date && (
+                                <div className="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
+                                    <Clock className="w-3 h-3" />
+                                    {new Date(task.due_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
-                <button
-                    onClick={onAdd}
-                    className="w-full py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg text-sm dashed border border-transparent hover:border-gray-300 flex items-center justify-center transition-colors"
-                >
-                    <Plus className="w-4 h-4 mr-1" /> Add Task
-                </button>
             </div>
         </div>
     );
@@ -151,50 +136,99 @@ const KanbanColumn: React.FC<{
 const ProjectBoard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { addToast } = useToast();
+    const { user } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+
     const [project, setProject] = useState<Project | null>(null);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [teams, setTeams] = useState<any[]>([]);
-    const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    const [viewMode, setViewMode] = useState<'home' | 'board' | 'timeline' | 'calendar' | 'resources'>('home');
+    const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+    
+    // UI Modal State
     const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
     const [isTeamMembersOpen, setIsTeamMembersOpen] = useState(false);
-    const [classStudents, setClassStudents] = useState<User[]>([]);
-    const [viewMode, setViewMode] = useState<'home' | 'board' | 'timeline' | 'calendar' | 'resources'>('home');
-    const [expandedTeamIds, setExpandedTeamIds] = useState<Set<number>>(new Set());
-    const [showArchived, setShowArchived] = useState(false);
-    const [projectResources, setProjectResources] = useState<any[]>([]);
-    const [timelineRefresh, setTimelineRefresh] = useState(0);
     const [isContributionsOpen, setIsContributionsOpen] = useState(false);
-    const { addToast } = useToast();
-    const { user } = useAuth();
-
-    // Critique Modal State
+    const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
     const [isCritiqueModalOpen, setIsCritiqueModalOpen] = useState(false);
-    const [critiqueTask] = useState<Task | null>(null);
-
-    // Task Details Modal State
+    
+    // Data/Selection State
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+    const [critiqueTask, setCritiqueTask] = useState<Task | null>(null);
+    const [classStudents, setClassStudents] = useState<User[]>([]);
+    const [projectResources, setProjectResources] = useState<any[]>([]);
+    const [timelineRefresh, setTimelineRefresh] = useState(0);
 
-    // Peer Assignment Modal State
-    const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+    // Filters
+    const [priorityFilter, setPriorityFilter] = useState<string>('');
+    const [assigneeFilter, setAssigneeFilter] = useState<string>('');
+    const [showArchived, setShowArchived] = useState(false);
 
-    // Add Resource Modal State
-    const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
-    const [resourceType, setResourceType] = useState<'link' | 'file'>('link');
-    const [resourceUrl, setResourceUrl] = useState('');
-    const [resourceTitle, setResourceTitle] = useState('');
-    const [resourceFile, setResourceFile] = useState<File | null>(null);
-    const [isSubmittingResource, setIsSubmittingResource] = useState(false);
+    const teamIdParam = searchParams.get('team_id');
 
-    const toggleTeamExpand = (teamId: number) => {
-        const newSet = new Set(expandedTeamIds);
-        if (newSet.has(teamId)) {
-            newSet.delete(teamId);
-        } else {
-            newSet.add(teamId);
+    useEffect(() => {
+        if (!id) return;
+        setLoading(true);
+
+        const fetchData = async () => {
+            try {
+                const projRes = await api.get<{ project: Project }>(`/projects/${id}`);
+                setProject(projRes.project);
+
+                const teamRes = await api.get<any[]>(`/projects/${id}/teams`);
+                setTeams(teamRes || []);
+
+                if (projRes.project.class_id) {
+                    const classRes = await api.get<any>(`/classes/${projRes.project.class_id}`);
+                    if (classRes && Array.isArray(classRes.students)) {
+                        setClassStudents(classRes.students);
+                    }
+                }
+                
+                await fetchResources();
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [id]);
+
+    useEffect(() => {
+        const tid = teamIdParam ? Number(teamIdParam) : null;
+        setSelectedTeamId(tid);
+        fetchTasks(tid);
+    }, [teamIdParam, showArchived]);
+
+    const fetchTasks = async (teamId: number | null) => {
+        let url = teamId
+            ? `/projects/${id}/tasks?team_id=${teamId}`
+            : `/projects/${id}/tasks`;
+
+        if (showArchived) {
+            url += (url.includes('?') ? '&' : '?') + 'include_deleted=true';
         }
-        setExpandedTeamIds(newSet);
+
+        try {
+            const data = await api.get<Task[]>(url);
+            setTasks(data);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const fetchResources = async () => {
+        try {
+            const data = await api.get<any[]>(`/projects/${id}/resources`);
+            setProjectResources(data || []);
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const handleEditProject = () => {
@@ -214,494 +248,400 @@ const ProjectBoard: React.FC = () => {
         }
     };
 
-    const handleTaskCreated = () => {
-        fetchTasks(selectedTeamId);
-        setTimelineRefresh(prev => prev + 1);
-    };
-
-    const handleTaskArchived = async (taskId: number) => {
-        if (!window.confirm('Archive this task? You can still view it in the Archived view.')) return;
-        try {
-            await api.delete(`/tasks/${taskId}`);
-            fetchTasks(selectedTeamId);
-            addToast('Task archived', 'success');
-        } catch (e) {
-            console.error(e);
-            addToast("Failed to archive task", 'error');
-        }
-    };
-
-    const handleTaskRestore = async (taskId: number) => {
-        try {
-            await api.post(`/tasks/${taskId}/restore`, {});
-            fetchTasks(selectedTeamId);
-            addToast('Task restored', 'success');
-        } catch (e) {
-            console.error(e);
-            addToast("Failed to restore task", 'error');
-        }
-    };
-
-    useEffect(() => {
-        if (!id) return;
-        setLoading(true);
-
-        const fetchData = async () => {
-            try {
-                const projRes = await api.get<{ project: Project }>(`/projects/${id}`);
-                setProject(projRes.project);
-
-                const teamRes = await api.get<any[]>(`/projects/${id}/teams`);
-                setTeams(teamRes || []);
-
-                try {
-                    const resData = await api.get<any[]>(`/projects/${id}/resources`);
-                    setProjectResources(resData || []);
-                } catch (e) {
-                    console.error("Failed to fetch project resources", e);
-                }
-
-                if (projRes.project.class_id) {
-                    try {
-                        const classId = Number(projRes.project.class_id);
-                        const classRes = await api.get<any>(`/classes/${classId}`);
-                        if (classRes && Array.isArray(classRes.students)) {
-                            setClassStudents(classRes.students);
-                        }
-                    } catch (e) {
-                        console.error("Failed to fetch class students", e);
-                    }
-                }
-
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [id]);
-
-    const [searchParams, setSearchParams] = useSearchParams();
-    const teamIdParam = searchParams.get('team_id');
-    const taskIdParam = searchParams.get('task');
-
-    const fetchProjectResources = async () => {
-        if (!id) return;
-        try {
-            const resData = await api.get<any[]>(`/projects/${id}/resources`);
-            setProjectResources(resData || []);
-        } catch (e) {
-            console.error("Failed to fetch project resources", e);
-        }
-    };
-
-    const handleAddResourceSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (resourceType === 'link' && !resourceUrl.trim()) return;
-        if (resourceType === 'file' && !resourceFile) return;
-
-        try {
-            setIsSubmittingResource(true);
-            let resData;
-
-            if (resourceType === 'file' && resourceFile) {
-                const formData = new FormData();
-                formData.append('file', resourceFile);
-                formData.append('title', resourceTitle.trim() || resourceFile.name);
-
-                resData = await fetch(`${API_BASE}/projects/${id}/resources/upload`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-                    },
-                    body: formData
-                }).then(async (res) => {
-                    if (!res.ok) throw new Error('Upload failed');
-                    return res.json();
-                });
-            } else {
-                const response = await api.post(`/projects/${id}/resources`, {
-                    title: resourceTitle.trim(),
-                    url: resourceUrl.trim(),
-                    type: 'link'
-                });
-                resData = { data: { resource: response } };
-            }
-
-            if (resData && (resData as any).data?.resource) {
-                const newRes = (resData as any).data.resource;
-                setProjectResources([newRes, ...projectResources]);
-                setResourceUrl('');
-                setResourceTitle('');
-                setResourceFile(null);
-                setIsResourceModalOpen(false);
-                addToast("Resource added successfully.", "success");
-            }
-        } catch (error) {
-            addToast("Failed to add resource.", "error");
-            console.error(error);
-        } finally {
-            setIsSubmittingResource(false);
-        }
-    };
-
     const handleDeleteResource = async (resourceId: number) => {
         if (!window.confirm('Are you sure you want to delete this resource?')) return;
         try {
             await api.delete(`/resources/${resourceId}`);
             addToast('Resource deleted', 'success');
-            fetchProjectResources();
+            fetchResources();
         } catch (e) {
             console.error('Failed to delete resource', e);
             addToast('Failed to delete resource', 'error');
         }
     };
 
-    const handleEditResourceClick = (_res: any) => {
-        // We'll need a modal or direct navigation for this, 
-        // passing for now as Teacher ProjectLibrary doesn't currently wire up an Edit Modal explicitly like TeamResources does.
-        // Usually, the teacher navigates to the team to edit, but we can implement a quick path later if requested.
-        addToast('Resource marked for edit (Modal injection pending integration)', 'info');
-    };
-
-    const getResourceLabel = (res: any) => {
-        if (res.title) return res.title;
-        if (res.type === 'file') {
-            const urlParts = res.url.split('/');
-            const fileName = urlParts[urlParts.length - 1];
-            const match = fileName.match(/res_[^_]+_(.+)/);
-            return match ? match[1] : fileName;
-        }
-        return res.url;
-    };
-    useEffect(() => {
-        if (teamIdParam) {
-            const tid = Number(teamIdParam);
-            setSelectedTeamId(tid);
-            fetchTasks(tid);
-        } else {
-            setSelectedTeamId(null);
-            fetchTasks(null);
-        }
-    }, [teamIdParam]);
-
-    useEffect(() => {
-        if (tasks.length > 0 && taskIdParam) {
-            const taskIdDecoded = Number(taskIdParam);
-            const task = tasks.find(t => t.id === taskIdDecoded);
-            if (task) {
-                setSelectedTask(task);
-                setViewMode('board'); // Switch to board to show the modal context
-            }
-        }
-    }, [tasks, taskIdParam]);
-
-    useEffect(() => {
-        if (!project) {
-            document.title = "Project Workspace | PBL Manager";
-            return;
-        }
-
-        let title = project.title;
-        if (selectedTeamId) {
-            const team = teams.find(t => t.id === selectedTeamId);
-            if (team) {
-                title += ` - ${team.name}`;
-            }
-            const viewName = viewMode === 'board' ? 'Board' : (viewMode === 'timeline' ? 'Timeline' : 'Resources');
-            title += ` - ${viewName}`;
-        } else {
-            title += " - Teacher View";
-        }
-        document.title = `${title} | PBL Manager`;
-    }, [project, selectedTeamId, teams, viewMode]);
-
-    const fetchTasks = async (teamId: number | null) => {
-        let url = teamId
-            ? `/projects/${id}/tasks?team_id=${teamId}`
-            : `/projects/${id}/tasks`;
-
-        if (showArchived) {
-            url += (url.includes('?') ? '&' : '?') + 'include_deleted=true';
-        }
-
-        try {
-            const data = await api.get<Task[]>(url);
-            setTasks(data);
-        } catch (e) { console.error(e); }
-    };
-
-    useEffect(() => {
+    const handleTaskCreated = () => {
         fetchTasks(selectedTeamId);
-    }, [showArchived]);
-
-    const handleTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const tid = e.target.value ? Number(e.target.value) : null;
-        if (tid) {
-            setSearchParams({ team_id: tid.toString() });
-        } else {
-            setSearchParams({});
-        }
+        setTimelineRefresh(prev => prev + 1);
     };
 
-    const handleCreateTeam = async (classId: number) => {
-        const name = prompt("Enter team name:");
-        if (!name) return;
-        try {
-            await api.post(`/projects/${id}/teams`, { name, class_id: classId });
-            // Refresh teams
-            const teamRes = await api.get<any[]>(`/projects/${id}/teams`);
-            setTeams(teamRes || []);
-            addToast('Team created', 'success');
-        } catch (e) {
-            addToast("Failed to create team", 'error');
-        }
-    };
-
-    const handleDeleteTeam = async (teamId: number, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!window.confirm('Are you sure you want to delete this team? All associated tasks will be removed. This cannot be undone.')) return;
-        try {
-            await api.delete(`/teams/${teamId}`);
-            setTeams(prev => prev.filter(t => t.id !== teamId));
-            if (selectedTeamId === teamId) {
-                setSearchParams({});
-                setSelectedTeamId(null);
-            }
-            addToast('Team deleted', 'success');
-        } catch (error) {
-            console.error('Failed to delete team:', error);
-            addToast('Failed to delete team', 'error');
-        }
-    };
-
-    // --- Drag and Drop & Status Logic ---
-
-    const updateTaskStatus = async (taskId: number, newStatus: string, additionalFields: any = {}) => {
-        // Optimistic update
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus as any, ...additionalFields } : t));
-
-        try {
-            await api.put<Task>(`/tasks/${taskId}`, { status: newStatus, ...additionalFields });
-        } catch (error: any) {
-            console.error("Failed to update task status", error);
-            // Revert
-            fetchTasks(selectedTeamId);
-            
-            const message = error.response?.data?.error?.message || "Failed to move task.";
-            addToast(message, 'error');
-        }
-    };
-
-    const handleToggleStuck = async (task: Task, forceState?: boolean) => {
-        const newStuckState = forceState !== undefined ? forceState : !task.is_stuck;
-        
-        // Optimistic update
-        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, is_stuck: newStuckState } : t));
-
-        try {
-            const res = await api.post<{ ok: boolean, task: Task }>(`/tasks/${task.id}/toggle-stuck`, { is_stuck: newStuckState });
-            addToast(newStuckState ? "Task marked as stuck." : "Task marked as unstuck.", "success");
-            if (res.task) {
-                setTasks(prev => prev.map(t => t.id === task.id ? res.task : t));
-            }
-        } catch (err) {
-            console.error("Failed to toggle stuck state", err);
-            // Revert
-            fetchTasks(selectedTeamId);
-            addToast("Failed to update task state.", "error");
-        }
-    };
-
-    const handleTaskDrop = (taskId: number, newStatus: string) => {
+    const handleTaskDrop = async (taskId: number, newStatus: string) => {
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
 
         if (newStatus === 'stuck') {
             if (task.is_stuck) return;
-            handleToggleStuck(task);
+            try {
+                await api.post(`/tasks/${taskId}/toggle-stuck`, { is_stuck: true });
+                addToast("Task marked as stuck", "success");
+                fetchTasks(selectedTeamId);
+            } catch (e) {
+                addToast("Failed to update status", "error");
+            }
             return;
         }
 
-        if (task.status === newStatus && !task.is_stuck) return;
-
-        // If it was stuck and we move it elsewhere, reset the stuck status atomically
-        const additionalFields = (task.is_stuck && newStatus !== 'stuck') ? { is_stuck: false } : {};
-
-        updateTaskStatus(taskId, newStatus, additionalFields);
+        const additionalFields = task.is_stuck ? { is_stuck: false } : {};
+        
+        try {
+            await api.put(`/tasks/${taskId}`, { status: newStatus as any, ...additionalFields });
+            fetchTasks(selectedTeamId);
+        } catch (e) {
+            addToast("Failed to move task", "error");
+        }
     };
 
     const handleCritiqueSubmit = async (warm: string, cool: string, requiresRevision: boolean) => {
         if (!critiqueTask) return;
         try {
-            await api.submitFeedback(critiqueTask.id, {
+            await api.submitFeedback(critiqueTask.id!, {
                 warm_feedback: warm,
                 cool_feedback: cool,
                 requires_revision: requiresRevision
             });
-
-            if (!requiresRevision) {
-                updateTaskStatus(critiqueTask.id, 'done');
-                setTasks(prev => prev.map(t => t.id === critiqueTask.id ? { ...t, is_completable: true } : t));
-            } else {
-                setTasks(prev => prev.map(t => t.id === critiqueTask.id ? { ...t, status: 'doing', is_completable: false } : t));
-            }
-
-            addToast(requiresRevision ? "Feedback submitted. Revision requested." : "Feedback submitted. Task completed!", 'success');
-
+            addToast("Feedback submitted", "success");
+            setIsCritiqueModalOpen(false);
+            setCritiqueTask(null);
+            fetchTasks(selectedTeamId);
         } catch (e) {
-            console.error("Critique submission failed", e);
-            addToast("Failed to submit critique.", 'error');
+            addToast("Failed to submit feedback", "error");
         }
     };
 
-
-    const todo = tasks.filter(t => t.status === 'todo' && !t.is_stuck && !t.parent_task_id);
-    const doing = tasks.filter(t => (t.status === 'doing' || (t.status as string) === 'in_progress') && !t.is_stuck && !t.parent_task_id);
-    const stuck = tasks.filter(t => t.is_stuck && !t.parent_task_id);
-    const done = tasks.filter(t => t.status === 'done' && !t.parent_task_id);
+    const handleAddResourceClick = () => {
+        // Implement modal or inline form here. For now, we'll use a placeholder.
+        addToast("Resource creation modal placeholder", "info");
+    };
 
     const selectedTeam = teams.find(t => t.id === selectedTeamId);
     const availableAssignees = selectedTeam ? selectedTeam.members : [];
 
-    if (loading) return <div>Loading Board...</div>;
+    const filteredTasks = tasks.filter(t => !t.parent_task_id);
+    const todoTasks = filteredTasks.filter(t => t.status === 'todo' && !t.is_stuck && (!priorityFilter || t.priority === priorityFilter) && (!assigneeFilter || String(t.assignee_id) === assigneeFilter));
+    const doingTasks = filteredTasks.filter(t => t.status === 'doing' && !t.is_stuck && (!priorityFilter || t.priority === priorityFilter) && (!assigneeFilter || String(t.assignee_id) === assigneeFilter));
+    const stuckTasks = filteredTasks.filter(t => t.is_stuck && (!priorityFilter || t.priority === priorityFilter) && (!assigneeFilter || String(t.assignee_id) === assigneeFilter));
+    const doneTasks = filteredTasks.filter(t => t.status === 'done' && (!priorityFilter || t.priority === priorityFilter) && (!assigneeFilter || String(t.assignee_id) === assigneeFilter));
 
-    const groupedTeams = (project?.classes || []).map(cls => {
-        const classTeams = teams.filter(t => t.class_id === cls.id);
-        return [cls.name, classTeams, cls.id] as [string, Team[], number];
-    }).sort(([a], [b]) => a.localeCompare(b));
+    if (loading) return (
+        <div className="flex items-center justify-center h-screen bg-gray-50">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                <p className="text-gray-500 font-medium">Loading project board...</p>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="h-full flex flex-col">
-            <div className="mb-6 flex justify-between items-start">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        {project ? project.title : `Project Workspace ${id}`}
-                        {selectedTeamId && teams.find(t => t.id === selectedTeamId) && (
-                            <span className="text-gray-500 font-normal">
-                                {' / '}{teams.find(t => t.id === selectedTeamId)?.name}
-                            </span>
-                        )}
-                    </h1>
-                    <p className="text-gray-500">Driving Question: {project ? project.driving_question : 'Loading...'}</p>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                        {project?.classes?.map(c => (
-                            <Link
-                                key={c.id}
-                                to={`/classes/${c.id}`}
-                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200"
-                            >
-                                {c.name}
-                            </Link>
-                        ))}
+        <div className="h-[calc(100vh-64px)] flex flex-col bg-gray-50 overflow-hidden">
+            {/* Project Header */}
+            <header className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <Link to="/teacher/dashboard" className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500">
+                            <ArrowLeft className="w-5 h-5" />
+                        </Link>
+                        <div>
+                            <h1 className="text-lg font-bold text-gray-900 leading-tight truncate max-w-[200px] sm:max-w-md">
+                                {project?.title}
+                            </h1>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded">
+                                    {selectedTeam ? selectedTeam.name : 'Teacher Overview'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div className="flex gap-4 items-center">
-                    <div className="flex items-center bg-gray-100 p-1 rounded-lg">
-                        <button onClick={() => setViewMode('home')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'home' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Home</button>
-                        <button onClick={() => setViewMode('board')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'board' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Board</button>
-                        {selectedTeamId && (
+
+                    <div className="flex items-center gap-2">
+                        {user?.role === 'teacher' && (
                             <>
-                                <button onClick={() => setViewMode('timeline')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'timeline' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Timeline</button>
-                                <button onClick={() => setViewMode('calendar')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Calendar</button>
-                                <button onClick={() => setViewMode('resources')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'resources' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Resources</button>
+                                <button 
+                                    onClick={() => setIsAssignmentModalOpen(true)}
+                                    className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                    title="Peer Assignments"
+                                >
+                                    <Users className="w-5 h-5" />
+                                </button>
+                                <button 
+                                    onClick={handleEditProject}
+                                    className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                    title="Edit Project"
+                                >
+                                    <Settings className="w-5 h-5" />
+                                </button>
+                                <button 
+                                    onClick={handleDeleteProject}
+                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete Project"
+                                >
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
                             </>
                         )}
-                        {!selectedTeamId && (
-                            <button onClick={() => setViewMode('calendar')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Calendar</button>
-                        )}
-                    </div>
-                    <div className="flex items-center">
-                        <label className="mr-2 text-sm font-medium text-gray-700">Group:</label>
-                        <select
-                            value={selectedTeamId || ''}
-                            onChange={handleTeamChange}
-                            className="bg-white border border-gray-300 rounded-md text-sm px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        <button 
+                            onClick={() => setIsCreateTaskOpen(true)}
+                            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-sm font-bold"
                         >
-                            <option value="">All / Teacher View</option>
+                            <Plus className="w-4 h-4" /> 
+                            <span className="hidden sm:inline">New Task</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* View Tabs - Scrollable on Mobile */}
+                <div className="flex items-center gap-1 mt-4 border-t border-transparent overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <button 
+                        onClick={() => setViewMode('home')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'home' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <LayoutIcon className="w-4 h-4" /> Home
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('board')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'board' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <BarChart className="w-4 h-4" /> Board
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('timeline')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'timeline' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <Clock className="w-4 h-4" /> Timeline
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('calendar')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'calendar' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <Calendar className="w-4 h-4" /> Calendar
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('resources')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'resources' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <Library className="w-4 h-4" /> Resources
+                    </button>
+                </div>
+            </header>
+
+            {/* Filters Bar - Only visible in Board/Timeline views */}
+            {(viewMode === 'board' || viewMode === 'timeline') && (
+                <div className="bg-white border-b border-gray-200 px-4 py-2 sm:px-6 flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-tight">Team:</span>
+                        <select 
+                            value={selectedTeamId || ''} 
+                            onChange={(e) => setSearchParams(e.target.value ? { team_id: e.target.value } : {})}
+                            className="text-sm border-gray-200 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 py-1 pl-2 pr-8"
+                        >
+                            <option value="">Overview (All Teams)</option>
                             {teams.map(t => (
-                                <option key={t.id} value={t.id}>{t.class_name ? `${t.class_name} - ${t.name}` : t.name}</option>
+                                <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
                         </select>
                     </div>
 
-                    <button
-                        onClick={() => setIsAssignmentModalOpen(true)}
-                        className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-200"
-                        title="Manage Peer Assignments"
-                    >
-                        <UserCheck className="w-5 h-5" />
-                        <span className="sr-only">Assignments</span>
-                    </button>
-
-                    {selectedTeamId && (
-                        <>
-                            <button
-                                onClick={() => setIsContributionsOpen(true)}
-                                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-200"
-                                title="Team Contributions Analytics"
-                            >
-                                <BarChart className="w-5 h-5" />
-                            </button>
-                            <button
-                                onClick={() => setIsTeamMembersOpen(true)}
-                                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-200"
-                                title="Manage Team Members"
-                            >
-                                <UserPlus className="w-5 h-5" />
-                            </button>
-                        </>
-                    )}
-                    <div className="flex gap-2 border-l pl-4 border-gray-200">
-                        <button
-                            onClick={() => setShowArchived(!showArchived)}
-                            className={`p-2 rounded-full transition-colors ${showArchived ? 'bg-amber-100 text-amber-600' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-100'}`}
-                            title={showArchived ? "Hide Archived" : "Show Archived"}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-tight">Priority:</span>
+                        <select 
+                            value={priorityFilter} 
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                            className="text-sm border-gray-200 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 py-1 pl-2 pr-8"
                         >
-                            <Archive className="w-5 h-5" />
-                        </button>
-                        <button onClick={handleEditProject} className="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100 transition-colors" title="Edit Project"><Pencil className="w-5 h-5" /></button>
-                        <button onClick={handleDeleteProject} className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition-colors" title="Delete Project"><Trash2 className="w-5 h-5" /></button>
+                            <option value="">All</option>
+                            <option value="P1">P1 - Critical</option>
+                            <option value="P2">P2 - High</option>
+                            <option value="P3">P3 - Normal</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-tight">Assignee:</span>
+                        <select 
+                            value={assigneeFilter} 
+                            onChange={(e) => setAssigneeFilter(e.target.value)}
+                            className="text-sm border-gray-200 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 py-1 pl-2 pr-8"
+                        >
+                            <option value="">All</option>
+                            {availableAssignees.map((m: any) => (
+                                <option key={m.id} value={String(m.id)}>{m.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-tight">Archived:</span>
+                        <input 
+                            type="checkbox"
+                            checked={showArchived}
+                            onChange={(e) => setShowArchived(e.target.checked)}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
                     </div>
                 </div>
-            </div>
+            )}
 
+            {/* Main Content Area */}
+            <main className="flex-1 overflow-hidden relative">
+                {viewMode === 'home' && project && (
+                    <div className="h-full overflow-y-auto custom-scrollbar">
+                        <ProjectHomeView
+                            project={project}
+                            currentUser={user}
+                            teams={teams}
+                            tasks={tasks.filter(t => !t.parent_task_id)}
+                            onTeamSelect={(teamId) => {
+                                setSearchParams({ team_id: teamId.toString() });
+                                setViewMode('board');
+                            }}
+                            onProjectUpdate={(updatedProject) => setProject(updatedProject)}
+                        />
+                    </div>
+                )}
+
+                {viewMode === 'board' && (
+                    <div className="h-full overflow-x-auto overflow-y-hidden px-4 sm:px-6 py-4 flex gap-4 sm:gap-6 snap-x snap-mandatory custom-scrollbar">
+                        <KanbanColumn 
+                            title="To Do" 
+                            status="todo" 
+                            tasks={todoTasks} 
+                            onAdd={() => setIsCreateTaskOpen(true)} 
+                            onDrop={handleTaskDrop} 
+                            onTaskClick={setSelectedTask} 
+                        />
+                        <KanbanColumn 
+                            title="In Progress" 
+                            status="doing" 
+                            tasks={doingTasks} 
+                            onAdd={() => setIsCreateTaskOpen(true)} 
+                            onDrop={handleTaskDrop} 
+                            onTaskClick={setSelectedTask} 
+                        />
+                        <KanbanColumn 
+                            title="Stuck" 
+                            status="stuck" 
+                            tasks={stuckTasks} 
+                            onAdd={() => setIsCreateTaskOpen(true)} 
+                            onDrop={handleTaskDrop} 
+                            onTaskClick={setSelectedTask} 
+                        />
+                        <KanbanColumn 
+                            title="Done" 
+                            status="done" 
+                            tasks={doneTasks} 
+                            onAdd={() => setIsCreateTaskOpen(true)} 
+                            onDrop={handleTaskDrop} 
+                            onTaskClick={setSelectedTask} 
+                        />
+                    </div>
+                )}
+
+                {viewMode === 'timeline' && selectedTeamId && (
+                    <div className="h-full overflow-hidden bg-white">
+                        <TimelineView
+                            teamId={selectedTeamId}
+                            projectProp={project!}
+                            onAddTask={() => setIsCreateTaskOpen(true)}
+                            showArchived={showArchived}
+                            onTaskClick={setSelectedTask}
+                            refreshTrigger={timelineRefresh}
+                        />
+                    </div>
+                )}
+
+                {viewMode === 'calendar' && (
+                    <div className="h-full overflow-y-auto">
+                        <CalendarView 
+                            projectId={Number(id)} 
+                            teamId={selectedTeamId || undefined}
+                            showHeader={true}
+                            showFilters={false}
+                        />
+                    </div>
+                )}
+
+                {viewMode === 'resources' && (
+                    <div className="h-full overflow-y-auto p-4 sm:p-6 bg-white border-t border-gray-100">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">Project Library</h2>
+                            <button
+                                onClick={handleAddResourceClick}
+                                className="flex items-center text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 transition shadow-sm font-bold"
+                            >
+                                <Plus className="w-4 h-4 mr-1" /> Add Resource
+                            </button>
+                        </div>
+                        
+                        {projectResources.length === 0 ? (
+                            <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                                <Library className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                <p className="text-gray-500 font-medium">No resources added to this project yet.</p>
+                                <p className="text-sm text-gray-400 mt-1">Shared files and links will appear here.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {projectResources.map(res => (
+                                    <div key={res.id} className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group">
+                                        <div className="flex justify-between items-start mb-2 group-hover:pr-20 relative">
+                                            <h3 className="font-semibold text-gray-900 line-clamp-1 flex-1 pr-2" title={res.title || res.url}>{res.title || res.url}</h3>
+                                            <div className="flex gap-1 absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-indigo-600 transition-colors bg-gray-50 p-1.5 rounded-lg">
+                                                    <ExternalLink className="w-4 h-4" />
+                                                </a>
+                                                <button onClick={() => handleDeleteResource(res.id)} className="text-gray-400 hover:text-red-600 transition-colors bg-gray-50 p-1.5 rounded-lg">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-gray-500 flex items-center gap-2">
+                                            <span className="px-1.5 py-0.5 rounded bg-gray-100 font-bold uppercase text-[9px] tracking-wide">{res.type}</span>
+                                            <span className="truncate">{res.url}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </main>
+
+            {/* Modals Container */}
             {project && (
                 <>
-                    <PeerAssignmentModal
-                        isOpen={isAssignmentModalOpen}
-                        onClose={() => setIsAssignmentModalOpen(false)}
-                        projectId={Number(id)}
-                    />
                     <CreateTaskModal
                         project={project}
                         existingTasks={tasks}
                         isOpen={isCreateTaskOpen}
-                        onClose={() => { setIsCreateTaskOpen(false); setTaskToEdit(null); }}
+                        onClose={() => {
+                            setIsCreateTaskOpen(false);
+                            setTaskToEdit(null);
+                        }}
                         onTaskCreated={handleTaskCreated}
                         defaultTeamId={selectedTeamId}
                         availableMembers={availableAssignees}
                         teams={teams}
                         taskToEdit={taskToEdit}
                     />
-                    <TaskDetailsModal
-                        isOpen={!!selectedTask}
-                        onClose={() => setSelectedTask(null)}
-                        task={selectedTask}
-                        project={project}
-                        onTaskUpdate={(updatedTask) => {
-                            setSelectedTask(updatedTask);
-                            fetchTasks(selectedTeamId);
-                        }}
-                        onEditTask={(t) => {
-                            setSelectedTask(null);
-                            setTaskToEdit(t);
-                            setIsCreateTaskOpen(true);
-                        }}
-                    />
+
+                    {selectedTask && (
+                        <TaskDetailsModal
+                            task={selectedTask}
+                            project={project}
+                            isOpen={!!selectedTask}
+                            onClose={() => {
+                                setSelectedTask(null);
+                                fetchTasks(selectedTeamId);
+                            }}
+                            onTaskUpdate={() => {
+                                fetchTasks(selectedTeamId);
+                            }}
+                            onEditTask={(t) => {
+                                setSelectedTask(null);
+                                setTaskToEdit(t);
+                                setIsCreateTaskOpen(true);
+                            }}
+                        />
+                    )}
+
                     {selectedTeam && (
                         <TeamMembersModal
                             isOpen={isTeamMembersOpen}
@@ -713,347 +653,32 @@ const ProjectBoard: React.FC = () => {
                             }}
                         />
                     )}
+
+                    <PeerAssignmentModal
+                        isOpen={isAssignmentModalOpen}
+                        onClose={() => setIsAssignmentModalOpen(false)}
+                        projectId={Number(id)}
+                    />
+
+                    <TeamContributionsModal
+                        isOpen={isContributionsOpen}
+                        onClose={() => setIsContributionsOpen(false)}
+                        teamId={selectedTeamId || 0}
+                        teamName={selectedTeam?.name || ''}
+                    />
+
                     {critiqueTask && (
                         <CritiqueModal
                             isOpen={isCritiqueModalOpen}
-                            onClose={() => setIsCritiqueModalOpen(false)}
+                            onClose={() => {
+                                setIsCritiqueModalOpen(false);
+                                setCritiqueTask(null);
+                            }}
                             onSubmit={handleCritiqueSubmit}
                             taskTitle={critiqueTask.title}
                         />
                     )}
                 </>
-            )}
-
-            <div className="flex-1 overflow-x-auto">
-                {viewMode === 'home' && project ? (
-                    <ProjectHomeView
-                        project={project}
-                        currentUser={user}
-                        teams={teams}
-                        tasks={tasks}
-                        onTeamSelect={(id) => {
-                            setSearchParams({ team_id: id.toString() });
-                            setViewMode('board');
-                        }}
-                        onProjectUpdate={(updatedProject) => setProject(updatedProject)}
-                    />
-                ) : selectedTeamId ? (
-                    viewMode === 'board' ? (
-                        <div className="flex gap-6 h-full pb-4">
-                            <KanbanColumn
-                                title="To Do"
-                                status="todo"
-                                tasks={todo}
-                                onAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
-                                onDrop={handleTaskDrop}
-                                onArchive={handleTaskArchived}
-                                onRestore={handleTaskRestore}
-                                onTaskClick={(task) => setSelectedTask(task)}
-                            />
-                            <KanbanColumn
-                                title="In Progress"
-                                status="doing"
-                                tasks={doing}
-                                onAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
-                                onDrop={handleTaskDrop}
-                                onArchive={handleTaskArchived}
-                                onRestore={handleTaskRestore}
-                                onTaskClick={(task) => setSelectedTask(task)}
-                            />
-                            <KanbanColumn
-                                title="Stuck"
-                                status="stuck"
-                                tasks={stuck}
-                                onAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
-                                onDrop={handleTaskDrop}
-                                onArchive={handleTaskArchived}
-                                onRestore={handleTaskRestore}
-                                onTaskClick={(task) => setSelectedTask(task)}
-                            />
-                            <KanbanColumn
-                                title="Done"
-                                status="done"
-                                tasks={done}
-                                onAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
-                                onDrop={handleTaskDrop}
-                                onArchive={handleTaskArchived}
-                                onRestore={handleTaskRestore}
-                                onTaskClick={(task) => setSelectedTask(task)}
-                            />
-                        </div>
-                    ) : viewMode === 'timeline' ? (
-                        <TimelineView
-                            teamId={selectedTeamId}
-                            projectProp={project || undefined}
-                            onAddTask={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
-                            showArchived={showArchived}
-                            onTaskClick={(task) => setSelectedTask(task)}
-                            refreshTrigger={timelineRefresh}
-                        />
-                    ) : viewMode === 'calendar' ? (
-                        <CalendarView 
-                            projectId={Number(id)} 
-                            teamId={selectedTeamId || undefined}
-                            showHeader={true}
-                            showFilters={false}
-                        />
-                    ) : (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 overflow-y-auto">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">Project Library</h2>
-                                <button
-                                    onClick={() => {
-                                        setResourceType('link');
-                                        setResourceUrl('');
-                                        setResourceTitle('');
-                                        setResourceFile(null);
-                                        setIsResourceModalOpen(true);
-                                    }}
-                                    className="flex items-center text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 transition shadow-sm"
-                                >
-                                    <Plus className="w-4 h-4 mr-1" /> Add Resource
-                                </button>
-                            </div>
-                            {projectResources.length === 0 ? (
-                                <div className="text-gray-400 italic py-8 text-center border-2 border-dashed border-gray-100 rounded-xl">No resources attached to this project or its tasks yet.</div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {projectResources.map(res => {
-                                        const team = res.team_id ? teams.find(t => t.id === res.team_id) : null;
-                                        const relatedTask = res.task_id ? tasks.find((t: any) => t.id === res.task_id) : null;
-                                        return (
-                                            <div key={res.id} className="p-4 bg-gray-50 hover:bg-white border hover:border-indigo-200 border-gray-100 rounded-lg shadow-sm transition-all group">
-                                                <div className="flex justify-between items-start mb-2 group-hover:pr-12 relative">
-                                                    <h3 className="font-semibold text-gray-900 line-clamp-1 flex-1 pr-2" title={getResourceLabel(res)}>{getResourceLabel(res)}</h3>
-                                                    <div className="flex gap-1 absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-indigo-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
-                                                            <ExternalLink className="w-3.5 h-3.5" />
-                                                        </a>
-                                                        {(user?.role === 'teacher' || user?.role === 'admin' || res.user_id === user?.id) && (
-                                                            <>
-                                                                <button onClick={(e) => { e.preventDefault(); handleEditResourceClick(res); }} className="text-gray-400 hover:text-emerald-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
-                                                                    <Edit2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                <button onClick={(e) => { e.preventDefault(); handleDeleteResource(res.id); }} className="text-gray-400 hover:text-red-600 transition-colors bg-white p-1 rounded shadow-sm border border-gray-100 flex items-center justify-center h-7 w-7">
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="text-xs text-gray-500 mb-3 break-all line-clamp-1 flex items-center gap-1" title={res.url}>
-                                                    <div className="px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 font-medium uppercase text-[10px] tracking-wide inline-block">{res.type}</div>
-                                                    {res.url}
-                                                </div>
-                                                {team && (
-                                                    <div className="mt-auto pt-3 border-t border-gray-200/60">
-                                                        <div className="text-xs text-emerald-700 font-medium flex items-center">
-                                                            Team: {team.name}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {relatedTask && (
-                                                    <div className={team ? "mt-1" : "mt-auto pt-3 border-t border-gray-200/60"}>
-                                                        <div className="text-xs text-indigo-600 font-medium flex items-center cursor-pointer hover:underline" onClick={() => setSelectedTask(relatedTask)}>
-                                                            Attached to: {relatedTask.title}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {!relatedTask && res.task_id && (
-                                                    <div className={team ? "mt-1" : "mt-auto pt-3 border-t border-gray-200/60"}>
-                                                        <div className="text-[10px] text-gray-400">Attached to Task #{res.task_id}</div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )
-                ) : (
-                    <div className="h-full overflow-y-auto space-y-8 pr-4">
-                        {groupedTeams.map(([className, classTeams, classId]: [string, Team[], number]) => (
-                            <div key={classId} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10">
-                                    <h2 className="text-lg font-bold text-gray-800">{className}</h2>
-                                    <button
-                                        onClick={() => handleCreateTeam(classId)}
-                                        className="text-xs flex items-center text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-md transition-colors"
-                                    >
-                                        <Plus className="w-3 h-3 mr-1" /> New Team
-                                    </button>
-                                </div>
-                                <div className="space-y-6">
-                                    {classTeams.length === 0 ? (
-                                        <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                                            <p className="text-sm text-gray-400 italic mb-2">No teams created for this class yet.</p>
-                                            <button
-                                                onClick={() => handleCreateTeam(classId)}
-                                                className="text-xs text-indigo-600 hover:underline"
-                                            >
-                                                Create the first team
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        classTeams.sort((a: Team, b: Team) => a.name.localeCompare(b.name)).map((team: Team) => {
-                                            const teamTasks = tasks.filter(t => t.team_id === team.id);
-                                            const teamTodo = teamTasks.filter(t => t.status === 'todo' && !t.is_stuck);
-                                            const teamDoing = teamTasks.filter(t => ((t.status as string) === 'doing' || (t.status as string) === 'in_progress') && !t.is_stuck);
-                                            const teamStuck = teamTasks.filter(t => t.is_stuck);
-                                            const teamDone = teamTasks.filter(t => t.status === 'done');
-
-                                            return (
-                                                <div key={team.id} className="border-t border-gray-100 pt-4 first:border-0 first:pt-0">
-                                                    <div className="flex items-center justify-between mb-3 bg-gray-50 p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onClick={() => toggleTeamExpand(team.id)}>
-                                                        <div className="flex items-center gap-2">
-                                                            <button className="text-gray-400 hover:text-gray-600 focus:outline-none" onClick={(e) => { e.stopPropagation(); toggleTeamExpand(team.id); }}>
-                                                                {expandedTeamIds.has(team.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                                            </button>
-                                                            <h3 className="font-semibold text-gray-700">{team.name}</h3>
-                                                            <span className="text-xs text-gray-400 font-normal">({teamTasks.length} tasks)</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <button onClick={(e) => handleDeleteTeam(team.id, e)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete Team">
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                            <button onClick={(e) => { e.stopPropagation(); setSearchParams({ team_id: team.id.toString() }); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md flex items-center gap-1 text-sm font-medium transition-colors" title="Go to Board">
-                                                                <span>Open Board</span><ExternalLink className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    {expandedTeamIds.has(team.id) && (
-                                                        <div className="pl-8 pb-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                                                <div className="bg-gray-50 rounded p-3 text-xs border border-gray-100">
-                                                                    <span className="font-semibold text-gray-500 mb-2 block uppercase tracking-wider text-[10px]">To Do ({teamTodo.length})</span>
-                                                                    <div className="space-y-2">
-                                                                        {teamTodo.map(t => <div key={t.id} className="bg-white p-2 border rounded shadow-sm truncate border-l-4 border-l-gray-300">{t.title}</div>)}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="bg-blue-50/50 rounded p-3 text-xs border border-blue-100">
-                                                                    <span className="font-semibold text-blue-600 mb-2 block uppercase tracking-wider text-[10px]">In Progress ({teamDoing.length})</span>
-                                                                    <div className="space-y-2">
-                                                                        {teamDoing.map(t => <div key={t.id} className="bg-white p-2 border rounded shadow-sm truncate border-l-4 border-l-blue-400">{t.title}</div>)}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="bg-amber-50/50 rounded p-3 text-xs border border-amber-100">
-                                                                    <span className="font-semibold text-amber-600 mb-2 block uppercase tracking-wider text-[10px]">Stuck ({teamStuck.length})</span>
-                                                                    <div className="space-y-2">
-                                                                        {teamStuck.map(t => <div key={t.id} className="bg-white p-2 border rounded shadow-sm truncate border-l-4 border-l-amber-400">{t.title}</div>)}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="bg-green-50/50 rounded p-3 text-xs border border-green-100">
-                                                                    <span className="font-semibold text-green-600 mb-2 block uppercase tracking-wider text-[10px]">Done ({teamDone.length})</span>
-                                                                    <div className="space-y-2">
-                                                                        {teamDone.map(t => <div key={t.id} className="bg-white p-2 border rounded shadow-sm truncate border-l-4 border-l-green-400">{t.title}</div>)}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                        {groupedTeams.length === 0 && (
-                            <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                                <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                <h3 className="text-lg font-medium text-gray-900">No Classes Assigned</h3>
-                                <p className="text-gray-500 max-w-xs mx-auto mt-1">Assign this project to a class to start building teams and managing tasks.</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {isContributionsOpen && selectedTeamId && (
-                <TeamContributionsModal
-                    teamId={selectedTeamId}
-                    teamName={teams.find(t => t.id === selectedTeamId)?.name || ''}
-                    isOpen={isContributionsOpen}
-                    onClose={() => setIsContributionsOpen(false)}
-                />
-            )}
-
-            {isResourceModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h2 className="text-lg font-bold text-gray-900">Add a New Resource</h2>
-                            <button onClick={() => setIsResourceModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleAddResourceSubmit} className="p-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Type</label>
-                                    <select
-                                        value={resourceType}
-                                        onChange={(e) => setResourceType(e.target.value as 'link' | 'file')}
-                                        className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                                    >
-                                        <option value="link">External Link</option>
-                                        <option value="file">Document/File</option>
-                                    </select>
-                                </div>
-                                {resourceType === 'link' ? (
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">URL / Link Location *</label>
-                                        <input
-                                            type="url"
-                                            required
-                                            value={resourceUrl}
-                                            onChange={(e) => setResourceUrl(e.target.value)}
-                                            placeholder="https://..."
-                                            className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Upload File *</label>
-                                        <input
-                                            type="file"
-                                            required
-                                            onChange={(e) => setResourceFile(e.target.files?.[0] || null)}
-                                            className="w-full text-sm p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                                        />
-                                    </div>
-                                )}
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Title (Optional)</label>
-                                    <input
-                                        type="text"
-                                        value={resourceTitle}
-                                        onChange={(e) => setResourceTitle(e.target.value)}
-                                        placeholder="e.g. Research Document"
-                                        className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-8 flex justify-end gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsResourceModalOpen(false)}
-                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSubmittingResource}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 flex items-center"
-                                >
-                                    {isSubmittingResource ? 'Adding...' : 'Add Resource'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
             )}
         </div>
     );

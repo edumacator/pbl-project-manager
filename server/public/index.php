@@ -116,6 +116,7 @@ try {
     $qnaService = new ProjectQnaService($qnaRepo);
     $adminService = new \App\Services\AdminService($userRepo, $classRepo, $projectRepo, $taskRepo);
     $calendarService = new CalendarService($taskRepo, $projectRepo, $teamRepo, $checkpointRepo, $resourceRepo, getenv('FRONTEND_URL') ?: '');
+    $analyticsService = new AnalyticsService();
 } catch (\Throwable $e) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => ['code' => 'BOOTSTRAP_ERROR', 'message' => $e->getMessage()]]);
@@ -489,7 +490,7 @@ if (preg_match('#^/api/v1/projects/(\d+)/teams$#', $uri, $matches)) {
             // Generate default tasks if any
             $project = $projectService->getProjectById($projectId);
             if ($project && !empty($project->defaultTasks)) {
-                $teacherId = $project->teacherId ?: $classId; // fallback if needed
+                $staffId = $project->authorId ?: $classId; // fallback if needed
                 $userId = $currentUser->id;
 
                 foreach ($project->defaultTasks as $dt) {
@@ -1530,10 +1531,10 @@ if ($uri === '/api/v1/classes') {
             echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
             exit;
         }
-        $teacherId = $currentUser->id;
+        $staffId = $currentUser->id;
         $includeDeleted = ($_GET['include_deleted'] ?? 'false') === 'true';
         try {
-            $classes = $classService->getClassesByStaff($teacherId, $includeDeleted);
+            $classes = $classService->getClassesByStaff($staffId, $includeDeleted);
             echo json_encode(['ok' => true, 'data' => $classes]);
         } catch (\Exception $e) {
             http_response_code(500);
@@ -1550,9 +1551,9 @@ if ($uri === '/api/v1/classes') {
         }
         $input = json_decode(file_get_contents('php://input'), true);
         file_put_contents('php://stderr', "Creating class: " . print_r($input, true) . "\n");
-        $teacherId = $currentUser->id;
+        $staffId = $currentUser->id;
         try {
-            $class = $classService->createClass($input['name'] ?? '', $teacherId);
+            $class = $classService->createClass($input['name'] ?? '', $staffId);
             echo json_encode(['ok' => true, 'data' => ['class' => $class]]);
         } catch (\InvalidArgumentException $e) {
             http_response_code(400);
@@ -1856,8 +1857,8 @@ if ($uri === '/api/v1/analytics/at-risk' && $_SERVER['REQUEST_METHOD'] === 'GET'
             echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
             exit;
         }
-        $teacherId = $currentUser->id;
-        $students = $analyticsService->getAtRiskStudents($teacherId);
+        $staffId = $currentUser->id;
+        $students = $analyticsService->getAtRiskStudents($staffId);
         echo json_encode(['ok' => true, 'data' => $students]);
     } catch (\Exception $e) {
         http_response_code(500);
@@ -1873,8 +1874,8 @@ if ($uri === '/api/v1/analytics/stuck-teams' && $_SERVER['REQUEST_METHOD'] === '
             echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
             exit;
         }
-        $teacherId = $currentUser->id;
-        $teams = $analyticsService->getStuckTeams($teacherId);
+        $staffId = $currentUser->id;
+        $teams = $analyticsService->getStuckTeams($staffId);
         echo json_encode(['ok' => true, 'data' => $teams]);
     } catch (\Exception $e) {
         http_response_code(500);

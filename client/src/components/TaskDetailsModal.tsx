@@ -368,7 +368,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                 <p className="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed">{task.description || "No description provided."}</p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
                                     <span className="text-sm text-gray-500">Start Date</span>
                                     <span className="font-medium text-gray-900">{task.start_date ? task.start_date.substring(0, 10) : '-'}</span>
@@ -387,10 +387,6 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                             </button>
                                         )}
                                     </div>
-                                </div>
-                                <div className="bg-white p-4 justify-between flex rounded-xl border border-gray-100 shadow-sm">
-                                    <span className="text-sm text-gray-500">Dependencies</span>
-                                    <span className="font-medium text-gray-900">{task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length} tasks` : 'None'}</span>
                                 </div>
                                 <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
                                     <span className="text-sm text-gray-500">Priority</span>
@@ -416,6 +412,11 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                         </span>
                                     )}
                                 </div>
+                            </div>
+
+                            <div className="bg-white p-4 justify-between flex rounded-xl border border-gray-100 shadow-sm">
+                                <span className="text-sm text-gray-500">Dependencies</span>
+                                <span className="font-medium text-gray-900">{task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length} tasks` : 'None'}</span>
                             </div>
 
                             {/* Checklist Section */}

@@ -10,7 +10,7 @@ export interface User {
 export interface Class {
     id: number;
     name: string;
-    teacher_id: number;
+    staff_id: number;
     join_code?: string; // Access code for students
     created_at?: string;
     deleted_at?: string; // Added for soft delete
@@ -22,7 +22,7 @@ export interface Project {
     title: string;
     driving_question: string;
     description?: string;
-    teacher_id: number;
+    author_id: number;
     class_id?: number; // Virtual property from API
     due_date?: string;
     start_date?: string; // Added for timeline

@@ -11,7 +11,6 @@ Files changed:
 - [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
 - [client/src/components/ProjectHomeView.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/ProjectHomeView.tsx)
 - [client/src/components/TeamResources.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TeamResources.tsx)
-
 - [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
 
 Summary:
@@ -61,3 +60,78 @@ Summary:
 Prior intent preserved: Scaffolded adolescent executive function by ensuring that project ownership remains clear and functional, even when managed by administrators.
 New constraints: API JSON responses now use `author_id` and `staff_id` instead of `teacher_id`.
 Notes for Antigravity: Frontend components (ProjectBoard, ClassList) need updating to match the new JSON keys.
+
+## 2026-03-16 05:15 Codex Planned Work
+Scope: Subtask visibility sequestration and project board filtering.
+Files expected: client/src/pages/ProjectBoard.tsx, client/src/pages/student/ProjectBoard.tsx
+Conflict check: None.
+Intent to preserve: Keep subtasks functionally nested while preventing board/home overview clutter.
+
+## 2026-03-16 05:45 Codex Completed Work
+Files changed:
+- [client/src/pages/ProjectBoard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/ProjectBoard.tsx)
+- [client/src/pages/student/ProjectBoard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/student/ProjectBoard.tsx)
+
+Summary:
+- Filtered subtasks from Teacher "Home" overview team summaries and task counts.
+- Implemented subtask filtering on student Project Board "Home" and "Board" views.
+- Added **Priority** and **Assignee** filter controls to the Project Board header.
+- Verified fixes using teacher credentials; confirmed subtasks are hidden from Home tab while remaining visible via parent indicators in Board view.
+- Ensured type safety and robust null checks for board components.
+
+Prior intent preserved: Subtasks are sequestered to reduce cognitive load on the main board and home view while remaining accessible within the task detail context.
+New constraints: None.
+Notes for Antigravity: Filtering is done client-side based on the `parent_task_id` property.
+
+## 2026-03-16 11:45 Codex Completed Work
+Files changed:
+- [client/src/pages/ProjectBoard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/ProjectBoard.tsx)
+
+Summary:
+- Repaired `ProjectBoard.tsx`: fixed syntax errors and removed duplicate component definitions caused by previous corrupted edits.
+- Implemented Mobile-First Tab System: Added responsive tabs for Home, Board, Timeline, Calendar, and Resources views.
+- Optimized Kanban Layout: Ensured horizontal scrolling with snap-points for Kanban columns on small screens.
+- Header & Filter Refactoring: Redesigned the project header and filter bar to wrap and adapt gracefully to small screen widths.
+- Preserved Core Logic: Maintained subtask sequestration, priority/assignee filtering, and all modal integrations.
+- Fixed TypeScript errors and cleaned up unused imports and variables.
+
+Prior intent preserved: Maintained desktop UX integrity while drastically improving mobile usability through a tabbed interface and native-feeling interactions.
+New constraints: None.
+Notes for Antigravity: The `viewMode` state now controls the main display area, allowing for a cleaner mobile layout with individual tabbed focuses.
+
+## 2026-03-16 13:30 Codex Completed Work
+Files changed:
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [server/src/domain/Project.php](file:///c:/Antigravity_Projects/project-management/server/src/domain/Project.php)
+- [server/src/services/ProjectQnaService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/ProjectQnaService.php)
+- [server/src/repositories/mysql/ProjectQnaRepository.php](file:///c:/Antigravity_Projects/project-management/server/src/repositories/mysql/ProjectQnaRepository.php)
+- [server/src/services/AuthService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/AuthService.php)
+- [server/src/services/StudentService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/StudentService.php)
+- [client/src/types/index.ts](file:///c:/Antigravity_Projects/project-management/client/src/types/index.ts)
+- [client/src/pages/CreateProject.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/CreateProject.tsx)
+- [client/src/pages/admin/ClassOverview.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/admin/ClassOverview.tsx)
+
+Summary:
+- **Fixed 500 Errors**: Found and resolved cause of 500 responses on the dashboard by properly initializing `$analyticsService` in `index.php`.
+- **Role-Neutral Field Alignment**: Completed the rename of legacy `teacher_id`/`teacherId` fields to `author_id`/`authorId` (projects) and `staff_id`/`staffId` (classes) across all backend services, repositories, domain models, and frontend types/components.
+- **Bugfix**: Resolved `Project::$teacherId` undefined property error in `index.php`.
+- **Consistency Audit**: Verified that all critical API endpoints and frontend data mappings are synchronized with the new schema.
+- **Missing Data Investigation**: Confirmed that data is visible on local verification; fixed potential JSON key mismatches that could have caused data visibility issues in production.
+
+Prior intent preserved: System stability and clarity for student users by ensuring reliable data display and consistent internal architecture.
+New constraints: API JSON responses now strictly use `author_id` and `staff_id`.
+Notes for Antigravity: All known 500 errors are resolved. Frontend-backend field alignment is now 100% consistent across all primary routes.
+
+## 2026-03-16 08:25 Codex Completed Work
+Files changed:
+- [server/src/services/AnalyticsService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/AnalyticsService.php)
+- [client/src/components/StudentActivityPane.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/StudentActivityPane.tsx)
+
+Summary:
+- **Stuck Student Links**: Implemented direct "Help Student" links for individuals in the "Needs Attention" dashboard pane.
+- **Backend Metadata**: Enhanced `getAtRiskStudents` query to include `project_id`, `project_title`, and `class_id`.
+- **Frontend Deep-Linking**: Refined `StudentActivityPane` to deep-link to the `TeacherStudentDetail` page with all necessary filters pre-applied.
+
+Prior intent preserved: Reduced teacher cognitive load by providing a direct path from dashboard alerts to student coaching views.
+New constraints: None.
+Notes for Antigravity: The `student-detail` link assumes the standard query parameter structure (`student_id`, `project_id`, `class_id`).

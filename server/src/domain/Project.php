@@ -25,7 +25,7 @@ class Project implements JsonSerializable
         string $title,
         string $drivingQuestion,
         ?string $description = null,
-        ?int $teacherId = null,
+        ?int $authorId = null,
         ?string $dueDate = null,
         array $classes = [],
         ?int $id = null,
@@ -40,7 +40,7 @@ class Project implements JsonSerializable
         $this->title = $title;
         $this->drivingQuestion = $drivingQuestion;
         $this->description = $description;
-        $this->authorId = $teacherId;
+        $this->authorId = $authorId;
         $this->dueDate = $dueDate;
         $this->classes = $classes;
         $this->id = $id;

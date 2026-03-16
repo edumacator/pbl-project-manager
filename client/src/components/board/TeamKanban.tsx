@@ -32,11 +32,11 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
     const { addToast } = useToast();
 
     return (
-        <div className="flex h-full overflow-x-auto p-4 space-x-4">
+        <div className="flex h-full overflow-x-auto p-4 space-x-4 snap-x snap-mandatory lg:snap-none">
             {COLUMNS.map(column => (
                 <div
                     key={column.id}
-                    className="bg-gray-100 p-4 rounded-xl min-w-[300px] flex-shrink-0 flex flex-col h-full"
+                    className="bg-gray-100 p-4 rounded-xl min-w-[280px] sm:min-w-[300px] flex-shrink-0 flex flex-col h-full snap-center"
                     onDragOver={(e) => { e.preventDefault(); }}
                     onDrop={(e) => {
                         e.preventDefault();
