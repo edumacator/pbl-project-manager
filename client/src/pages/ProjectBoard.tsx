@@ -5,7 +5,8 @@ import { Task, Project, User } from '../types';
 import { 
     Plus, Trash2, Calendar, Users, 
     ExternalLink, ArrowLeft, BarChart, Clock,
-    Layout as LayoutIcon, Library, Settings
+    Layout as LayoutIcon, Library, Settings, AlertTriangle,
+    Paperclip, UserPlus
 } from 'lucide-react';
 import { CreateTaskModal } from '../components/CreateTaskModal';
 import { TeamMembersModal } from '../components/TeamMembersModal';
@@ -80,17 +81,6 @@ const KanbanColumn: React.FC<{
                             {task.title}
                         </div>
                         
-                        {task.priority && (
-                            <div className="mb-3">
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${
-                                    task.priority === 'P1' ? 'bg-red-50 text-red-600 border-red-100' :
-                                    task.priority === 'P2' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                                    'bg-gray-50 text-gray-500 border-gray-100'
-                                }`}>
-                                    {task.priority}
-                                </span>
-                            </div>
-                        )}
 
                         {/* Subtask Progress */}
                         {task.subtask_count !== undefined && task.subtask_count > 0 && (
@@ -108,21 +98,49 @@ const KanbanColumn: React.FC<{
                             </div>
                         )}
 
-                        <div className="flex items-center justify-between mt-2">
-                            <div className="flex -space-x-1 overflow-hidden">
-                                {task.assignee_id && (
-                                    <div 
-                                        className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-700"
-                                        title={task.assignee_name}
-                                    >
-                                        {getInitials(task.assignee_name)}
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+                            <div className="flex items-center gap-2">
+                                <div className="flex -space-x-1 overflow-hidden">
+                                    {task.assignee_id && (
+                                        <div 
+                                            className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-700"
+                                            title={task.assignee_name}
+                                        >
+                                            {getInitials(task.assignee_name)}
+                                        </div>
+                                    )}
+                                </div>
+                                {task.priority && (
+                                    <span className={`text-[8px] font-black px-1 rounded border uppercase tracking-tighter ${
+                                        task.priority === 'P1' ? 'bg-red-50 text-red-600 border-red-100' :
+                                        task.priority === 'P2' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                        'bg-gray-50 text-gray-400 border-gray-100'
+                                    }`}>
+                                        {task.priority}
+                                    </span>
+                                )}
+                                {task.resource_count && task.resource_count > 0 ? (
+                                    <div title={`${task.resource_count} resources attached`}>
+                                        <Paperclip className="w-3 h-3 text-indigo-400" />
+                                    </div>
+                                ) : null}
+                                {task.is_stuck && (
+                                    <div title="Team is stuck">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                                     </div>
                                 )}
                             </div>
                             {task.due_date && (
-                                <div className="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
+                                <div className={`text-[10px] flex items-center gap-1 font-bold italic ${
+                                    task.status !== 'done' && new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'
+                                }`}>
                                     <Clock className="w-3 h-3" />
                                     {new Date(task.due_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                    {task.status !== 'done' && new Date(task.due_date) < new Date() && (
+                                        <div title="Overdue">
+                                            <span className="ml-0.5 w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -156,6 +174,7 @@ const ProjectBoard: React.FC = () => {
     
     // Data/Selection State
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const isStaff = user?.role === 'teacher' || user?.role === 'admin';
     const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
     const [critiqueTask, setCritiqueTask] = useState<Task | null>(null);
     const [classStudents, setClassStudents] = useState<User[]>([]);
@@ -204,6 +223,21 @@ const ProjectBoard: React.FC = () => {
         setSelectedTeamId(tid);
         fetchTasks(tid);
     }, [teamIdParam, showArchived]);
+
+    useEffect(() => {
+        const taskId = searchParams.get('task');
+        if (taskId && tasks.length > 0) {
+            const task = tasks.find(t => t.id === Number(taskId));
+            if (task) {
+                setSelectedTask(task);
+            }
+        }
+
+        const viewParam = searchParams.get('view');
+        if (viewParam && ['home', 'board', 'timeline', 'calendar', 'resources'].includes(viewParam)) {
+            setViewMode(viewParam as any);
+        }
+    }, [searchParams, tasks]);
 
     const fetchTasks = async (teamId: number | null) => {
         let url = teamId
@@ -345,29 +379,49 @@ const ProjectBoard: React.FC = () => {
                                 {project?.title}
                             </h1>
                             <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded">
+                                <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded flex items-center gap-1.5 shadow-sm">
                                     {selectedTeam ? selectedTeam.name : 'Teacher Overview'}
+                                    {selectedTeam && (stuckTasks.length > 0 || tasks.some(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done')) && (
+                                        <div title="Attention Required">
+                                            <AlertTriangle className="w-3 h-3 text-amber-500 animate-pulse" />
+                                        </div>
+                                    )}
                                 </span>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {user?.role === 'teacher' && (
+                        {isStaff && (
                             <>
+                                <button 
+                                    onClick={handleEditProject}
+                                    className="flex items-center gap-2 px-3 py-2 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600 rounded-lg transition-all shadow-sm text-sm font-bold"
+                                    title="Edit Project Details"
+                                >
+                                    <Settings className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                                    <span>Edit Project</span>
+                                </button>
+
+                                {selectedTeam && (
+                                    <button 
+                                        onClick={() => setIsTeamMembersOpen(true)}
+                                        className="flex items-center gap-2 px-3 py-2 text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 hover:border-indigo-200 rounded-lg transition-all shadow-sm text-sm font-bold"
+                                        title="Manage Team Members"
+                                    >
+                                        <UserPlus className="w-4 h-4" />
+                                        <span>Manage Team</span>
+                                    </button>
+                                )}
+
+                                <div className="h-8 w-px bg-gray-200 mx-1 hidden sm:block"></div>
+
                                 <button 
                                     onClick={() => setIsAssignmentModalOpen(true)}
                                     className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                     title="Peer Assignments"
                                 >
                                     <Users className="w-5 h-5" />
-                                </button>
-                                <button 
-                                    onClick={handleEditProject}
-                                    className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                    title="Edit Project"
-                                >
-                                    <Settings className="w-5 h-5" />
                                 </button>
                                 <button 
                                     onClick={handleDeleteProject}
@@ -378,44 +432,37 @@ const ProjectBoard: React.FC = () => {
                                 </button>
                             </>
                         )}
-                        <button 
-                            onClick={() => setIsCreateTaskOpen(true)}
-                            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-sm font-bold"
-                        >
-                            <Plus className="w-4 h-4" /> 
-                            <span className="hidden sm:inline">New Task</span>
-                        </button>
                     </div>
                 </div>
 
                 {/* View Tabs - Scrollable on Mobile */}
-                <div className="flex items-center gap-1 mt-4 border-t border-transparent overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex items-center sm:justify-end gap-1 mt-4 border-t border-transparent overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
                     <button 
-                        onClick={() => setViewMode('home')}
+                        onClick={() => { setViewMode('home'); searchParams.delete('task'); setSearchParams(searchParams); }}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'home' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
                     >
                         <LayoutIcon className="w-4 h-4" /> Home
                     </button>
                     <button 
-                        onClick={() => setViewMode('board')}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'board' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-                    >
-                        <BarChart className="w-4 h-4" /> Board
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('timeline')}
+                        onClick={() => { setViewMode('timeline'); searchParams.delete('task'); setSearchParams(searchParams); }}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'timeline' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
                     >
                         <Clock className="w-4 h-4" /> Timeline
                     </button>
                     <button 
-                        onClick={() => setViewMode('calendar')}
+                        onClick={() => { setViewMode('board'); searchParams.delete('task'); setSearchParams(searchParams); }}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'board' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        <BarChart className="w-4 h-4" /> Board
+                    </button>
+                    <button 
+                        onClick={() => { setViewMode('calendar'); searchParams.delete('task'); setSearchParams(searchParams); }}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'calendar' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
                     >
                         <Calendar className="w-4 h-4" /> Calendar
                     </button>
                     <button 
-                        onClick={() => setViewMode('resources')}
+                        onClick={() => { setViewMode('resources'); searchParams.delete('task'); setSearchParams(searchParams); }}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all shrink-0 ${viewMode === 'resources' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
                     >
                         <Library className="w-4 h-4" /> Resources
@@ -555,6 +602,11 @@ const ProjectBoard: React.FC = () => {
                             teamId={selectedTeamId || undefined}
                             showHeader={true}
                             showFilters={false}
+                            onEventClick={(event) => {
+                                if (event.sourceType === 'task') {
+                                    setSearchParams({ ...Object.fromEntries(searchParams), task: event.sourceId.toString() });
+                                }
+                            }}
                         />
                     </div>
                 )}
@@ -629,6 +681,10 @@ const ProjectBoard: React.FC = () => {
                             isOpen={!!selectedTask}
                             onClose={() => {
                                 setSelectedTask(null);
+                                if (searchParams.has('task')) {
+                                    searchParams.delete('task');
+                                    setSearchParams(searchParams);
+                                }
                                 fetchTasks(selectedTeamId);
                             }}
                             onTaskUpdate={() => {

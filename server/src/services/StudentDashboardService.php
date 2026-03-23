@@ -41,7 +41,10 @@ class StudentDashboardService
         // Let's stick to Assignee for "My Tasks".
         $tasksStmt = $pdo->prepare("
             SELECT t.*, p.title as project_title,
-                   (SELECT COUNT(*) FROM task_dependencies td WHERE td.task_id = t.id) as blocker_count
+                   (SELECT COUNT(*) FROM task_dependencies td WHERE td.task_id = t.id) as blocker_count,
+                   (SELECT COUNT(*) FROM project_resources pr WHERE pr.task_id = t.id) as resource_count,
+                   (SELECT COUNT(*) FROM tasks st WHERE st.parent_task_id = t.id AND st.deleted_at IS NULL) as subtask_count,
+                   (SELECT COUNT(*) FROM tasks st WHERE st.parent_task_id = t.id AND st.status = 'done' AND st.deleted_at IS NULL) as completed_subtask_count
             FROM tasks t
             JOIN projects p ON t.project_id = p.id
             WHERE t.assignee_id = :student_id
@@ -152,7 +155,10 @@ class StudentDashboardService
 
         // 5. Recently Completed Tasks (Last 5)
         $completedTasksStmt = $pdo->prepare("
-            SELECT t.*, p.title as project_title
+            SELECT t.*, p.title as project_title,
+                   (SELECT COUNT(*) FROM project_resources pr WHERE pr.task_id = t.id) as resource_count,
+                   (SELECT COUNT(*) FROM tasks st WHERE st.parent_task_id = t.id AND st.deleted_at IS NULL) as subtask_count,
+                   (SELECT COUNT(*) FROM tasks st WHERE st.parent_task_id = t.id AND st.status = 'done' AND st.deleted_at IS NULL) as completed_subtask_count
             FROM tasks t
             JOIN projects p ON t.project_id = p.id
             WHERE t.assignee_id = :student_id

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Project, TaskReflection, ProjectResource, TaskMessage } from '../types';
-import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, Link2, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks, Download } from 'lucide-react';
+import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, Link2, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks, Download, Archive } from 'lucide-react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -271,12 +271,54 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
             addToast("Failed to update priority.", "error");
         }
     };
-
     const handleExportTask = () => {
         if (!task) return;
         const token = localStorage.getItem('auth_token');
         const url = `${API_BASE}/calendar/events/task-${task.id}/ics${token ? `?token=${token}` : ''}`;
         window.open(url, '_blank');
+    };
+
+    const handleArchiveTask = async () => {
+        if (!task) return;
+        if (!confirm("Are you sure you want to archive this task? It will be hidden from the board.")) return;
+        
+        setLoading(true);
+        try {
+            await api.delete(`/tasks/${task.id}`);
+            addToast("Task archived successfully", "success");
+            onClose();
+            // Trigger refresh in parent
+            if (onTaskUpdate) {
+                // We use a dummy update or clear to trigger parent refresh
+                onTaskUpdate({ ...task, deleted_at: new Date().toISOString() });
+            }
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to archive task.", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteTask = async () => {
+        if (!task) return;
+        if (!confirm("CRITICAL: Are you sure you want to PERMANENTLY delete this task? This cannot be undone and will remove all associated reflections and resources.")) return;
+
+        setLoading(true);
+        try {
+            await api.hardDeleteTask(task.id);
+            addToast("Task permanently deleted", "success");
+            onClose();
+            // Trigger refresh in parent
+            if (onTaskUpdate) {
+                onTaskUpdate({ ...task, id: -1 }); // Special ID to signal removal
+            }
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to delete task.", "error");
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!isOpen || !task) return null;
@@ -285,7 +327,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const statusColor = task.status === 'done' ? 'text-green-500' : (task.status === 'doing' ? 'text-blue-500' : 'text-gray-400');
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[25000]">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
                 {/* Header */}
                 <div className="flex justify-between items-start p-6 border-b border-gray-100 bg-gray-50/50">
@@ -570,6 +612,37 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     >
                                         {isStuck ? 'Unmark as Stuck' : 'Mark as Stuck'}
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Danger Zone / Actions */}
+                            {(canEdit || isTeacher) && (
+                                <div className="mt-8 pt-6 border-t border-gray-100">
+                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Task Actions</h3>
+                                    <div className="flex flex-wrap gap-3">
+                                        <button
+                                            onClick={handleArchiveTask}
+                                            disabled={loading}
+                                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-100 hover:bg-amber-100 rounded-lg transition-colors"
+                                        >
+                                            <Archive className="w-4 h-4" />
+                                            Archive Task
+                                        </button>
+
+                                        {isTeacher && (
+                                            <button
+                                                onClick={handleDeleteTask}
+                                                disabled={loading}
+                                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-100 hover:bg-red-100 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                Delete Permanently
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-3 italic">
+                                        {isTeacher ? "Archived tasks can be restored by teachers. Permanently deleted tasks are gone forever." : "Archiving hides the task from the board. Contact your teacher if you need to restore it."}
+                                    </p>
                                 </div>
                             )}
                         </div>

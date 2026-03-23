@@ -181,9 +181,14 @@ if ($uri === '/api/v1/auth/register' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Student Password Reset
 if (preg_match('#^/api/v1/students/(\d+)/reset-password$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
+    if (!$currentUser) {
         http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only teachers can reset passwords']]);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Please log in']]);
+        exit;
+    }
+    if (!in_array($currentUser->role, ['teacher', 'admin'])) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Teacher access required']]);
         exit;
     }
 
@@ -203,9 +208,14 @@ if (preg_match('#^/api/v1/students/(\d+)/reset-password$#', $uri, $matches) && $
 
 // Projects Batch Delete
 if ($uri === '/api/v1/projects-batch-delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
+    if (!$currentUser) {
         http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only teachers and admins can delete projects in batch']]);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Please log in']]);
+        exit;
+    }
+    if (!in_array($currentUser->role, ['teacher', 'admin'])) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Teacher/Admin access required']]);
         exit;
     }
 
@@ -230,9 +240,14 @@ if ($uri === '/api/v1/projects-batch-delete' && $_SERVER['REQUEST_METHOD'] === '
 
 // Join Class via Code
 if ($uri === '/api/v1/students/join-class' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!$currentUser || $currentUser->role !== 'student') {
+    if (!$currentUser) {
         http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Only students can join classes']]);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Please log in']]);
+        exit;
+    }
+    if ($currentUser->role !== 'student') {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Only students can join classes']]);
         exit;
     }
 
@@ -251,7 +266,12 @@ if ($uri === '/api/v1/students/join-class' && $_SERVER['REQUEST_METHOD'] === 'PO
 
 // ADMIN ROUTES
 if (str_starts_with($uri, '/api/v1/admin/')) {
-    if (!$currentUser || $currentUser->role !== 'admin') {
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Please log in']]);
+        exit;
+    }
+    if ($currentUser->role !== 'admin') {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Admin access required']]);
         exit;
@@ -260,6 +280,22 @@ if (str_starts_with($uri, '/api/v1/admin/')) {
     // List all users
     if ($uri === '/api/v1/admin/users' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         echo json_encode(['ok' => true, 'data' => $adminService->getAllUsers()]);
+        exit;
+    }
+
+    // Bulk create users
+    if ($uri === '/api/v1/admin/users/bulk' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $users = $input['users'] ?? [];
+        $role = $input['role'] ?? 'student';
+
+        try {
+            $result = $adminService->bulkCreateUsers($users, $role);
+            echo json_encode(['ok' => true, 'data' => $result]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
         exit;
     }
 
@@ -687,6 +723,22 @@ if (preg_match('#^/api/v1/tasks/(\d+)$#', $uri, $matches)) {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        if (str_ends_with($uri, '/hard')) {
+            if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Only teachers and admins can hard delete tasks']]);
+                exit;
+            }
+            try {
+                $success = $taskService->hardDeleteTask($taskId);
+                echo json_encode(['ok' => $success, 'data' => ['deleted' => $success]]);
+            } catch (\Exception $e) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+            }
+            exit;
+        }
+
         try {
             $success = $taskService->deleteTask($taskId);
             if ($success) {
@@ -1793,7 +1845,7 @@ if (preg_match('#^/api/v1/projects/(\d+)/team-context$#', $uri, $matches) && $_S
     $userId = $currentUser->id;
 
     try {
-        $service = new \App\Services\ProjectBoardService();
+        $service = new \App\Services\ProjectBoardService($taskService);
         $data = $service->getTeamContext($projectId, $userId);
         echo json_encode(['ok' => true, 'data' => $data]);
     } catch (\Exception $e) {

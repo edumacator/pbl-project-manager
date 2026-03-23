@@ -6,6 +6,8 @@ import { Plus, MessageCircle, Save, Edit2, Trash2, FileText, Link2, Maximize2, M
 import { useEditor, EditorContent } from '@tiptap/react';
 import { useNavigate } from 'react-router-dom';
 import StarterKit from '@tiptap/starter-kit';
+import { MilestonePanel } from './MilestonePanel';
+import { Checkpoint } from '../types';
 
 interface ProjectQna {
     id: number;
@@ -58,6 +60,8 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
     // Editor state
     const [isSavingDesc, setIsSavingDesc] = useState(false);
     const [isEditingMode, setIsEditingMode] = useState(false);
+    const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+    const [loadingCheckpoints, setLoadingCheckpoints] = useState(false);
     const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin';
 
     const editor = useEditor({
@@ -76,6 +80,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
         fetchResources();
         fetchQna();
         fetchStudents();
+        fetchCheckpoints();
     }, [project.id]);
 
     useEffect(() => {
@@ -125,6 +130,18 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
             console.error(e);
         } finally {
             setLoadingQna(false);
+        }
+    };
+    
+    const fetchCheckpoints = async () => {
+        setLoadingCheckpoints(true);
+        try {
+            const data = await api.get<Checkpoint[]>(`/projects/${project.id}/checkpoints`);
+            setCheckpoints(data || []);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoadingCheckpoints(false);
         }
     };
 
@@ -294,13 +311,33 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
 
     // Create a map of class names to their teams
     const teamsByClass = projectClasses.reduce((acc, cls) => {
-        acc[cls.name] = teams.filter(t => t.class_id === cls.id || t.class_name === cls.name);
+        let classTeams = teams.filter(t => t.class_id === cls.id || t.class_name === cls.name);
+        
+        // PRIVACY: If student, only show teams they are a member of
+        if (currentUser?.role === 'student') {
+            classTeams = classTeams.filter(t => t.members?.some((m: any) => 
+                (typeof m === 'number' ? m === currentUser.id : m.id === currentUser.id)
+            ));
+        }
+        
+        if (classTeams.length > 0) {
+            acc[cls.name] = classTeams;
+        }
         return acc;
     }, {} as Record<string, any[]>);
 
     // Also catch teams that might not match a class assigned to the project directly somehow
     teams.forEach(team => {
         const className = team.class_name || 'No Class';
+        
+        // PRIVACY Check for additional teams
+        if (currentUser?.role === 'student') {
+            const isMember = team.members?.some((m: any) => 
+                (typeof m === 'number' ? m === currentUser.id : m.id === currentUser.id)
+            );
+            if (!isMember) return;
+        }
+
         if (!teamsByClass[className]) {
             teamsByClass[className] = [];
         }
@@ -310,7 +347,8 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
     });
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
+        <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Fullscreen Backdrop */}
             {expandedPanel && (
                 <div
@@ -446,6 +484,7 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
 
                 {/* Resources & QnA Grid Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+
                     <div className={`bg-white rounded-xl border border-gray-200 flex flex-col transition-all ${expandedPanel === 'resources' ? 'fixed inset-4 md:inset-10 z-50 shadow-2xl' : 'shadow-sm max-h-[500px]'}`}>
                         <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
                             <h3 className="font-semibold text-gray-900">Shared Resources</h3>
@@ -671,8 +710,15 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                 </div> {/* End Resources & QnA Grid Row */}
             </div> {/* END LEFT COLUMN */}
 
-            {/* RIGHT COLUMN: Student Roster */}
+            {/* RIGHT COLUMN: Milestones & Roster */}
             <div className="space-y-6">
+                {/* Milestones Panel - Moved here for better visibility and to fill space */}
+                <MilestonePanel 
+                    checkpoints={checkpoints}
+                    requiresReflection={!!project.requires_milestone_reflection}
+                    requireCritique={!!project.require_critique}
+                    loading={loadingCheckpoints}
+                />
                 {(isTeacher && projectClasses.length > 0) && (
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col max-h-[850px]">
                         <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center sticky top-0 z-10 rounded-t-xl">
@@ -856,5 +902,6 @@ export const ProjectHomeView: React.FC<ProjectHomeViewProps> = ({ project, curre
                 </div>
             )}
         </div>
-    );
+    </div>
+);
 };

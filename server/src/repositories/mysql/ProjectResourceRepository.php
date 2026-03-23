@@ -110,6 +110,18 @@ class ProjectResourceRepository
         return $stmt->execute([':id' => $id]);
     }
 
+    public function getResourceCountsForProject(int $projectId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT task_id, COUNT(*) as count 
+            FROM project_resources 
+            WHERE project_id = :project_id AND task_id IS NOT NULL 
+            GROUP BY task_id
+        ");
+        $stmt->execute([':project_id' => $projectId]);
+        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
+
     private function mapRowToResource(array $row): ProjectResource
     {
         return new ProjectResource(

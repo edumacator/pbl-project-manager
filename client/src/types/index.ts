@@ -72,6 +72,7 @@ export interface Task {
     subtasks?: Task[];
     subtask_count?: number;
     completed_subtask_count?: number;
+    resource_count?: number;
 }
 
 export interface TaskChecklistItem {
