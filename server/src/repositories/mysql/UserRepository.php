@@ -48,8 +48,8 @@ class UserRepository implements UserRepositoryInterface
     public function create(User $user): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO users (first_name, last_name, name, email, role, password_hash, auth_token, student_id)
-            VALUES (:first_name, :last_name, :name, :email, :role, :password_hash, :auth_token, :student_id)
+            INSERT INTO users (first_name, last_name, name, email, role, requires_password_change, password_hash, auth_token, student_id)
+            VALUES (:first_name, :last_name, :name, :email, :role, :requires_password_change, :password_hash, :auth_token, :student_id)
         ");
 
         $stmt->execute([
@@ -58,6 +58,7 @@ class UserRepository implements UserRepositoryInterface
             ':name' => $user->name,
             ':email' => $user->email,
             ':role' => $user->role,
+            ':requires_password_change' => $user->requiresPasswordChange ? 1 : 0,
             ':password_hash' => $user->password_hash,
             ':auth_token' => $user->auth_token,
             ':student_id' => $user->student_id
@@ -70,7 +71,7 @@ class UserRepository implements UserRepositoryInterface
     {
         $stmt = $this->pdo->prepare("
             UPDATE users 
-            SET first_name = :first_name, last_name = :last_name, name = :name, email = :email, role = :role, student_id = :student_id
+            SET first_name = :first_name, last_name = :last_name, name = :name, email = :email, role = :role, requires_password_change = :requires_password_change, student_id = :student_id
             WHERE id = :id
         ");
 
@@ -80,6 +81,7 @@ class UserRepository implements UserRepositoryInterface
             ':name' => $user->name,
             ':email' => $user->email,
             ':role' => $user->role,
+            ':requires_password_change' => $user->requiresPasswordChange ? 1 : 0,
             ':student_id' => $user->student_id,
             ':id' => $user->id
         ]);
@@ -103,6 +105,12 @@ class UserRepository implements UserRepositoryInterface
         $stmt->execute([':hash' => $hash, ':id' => $userId]);
     }
 
+    public function setRequiresPasswordChange(int $userId, bool $requires): void
+    {
+        $stmt = $this->pdo->prepare("UPDATE users SET requires_password_change = :requires WHERE id = :id");
+        $stmt->execute([':requires' => $requires ? 1 : 0, ':id' => $userId]);
+    }
+
     public function findByToken(string $token): ?User
     {
         $stmt = $this->pdo->prepare("SELECT * FROM users WHERE auth_token = :token");
@@ -122,7 +130,8 @@ class UserRepository implements UserRepositoryInterface
             $row['last_name'] ?? '',
             $row['password_hash'] ?? null,
             $row['auth_token'] ?? null,
-            $row['student_id'] ?? null
+            $row['student_id'] ?? null,
+            (bool)($row['requires_password_change'] ?? true)
         );
     }
 

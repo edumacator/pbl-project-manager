@@ -18,6 +18,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) 
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
+    // New: Handle forced password change
+    if (user.requires_password_change && location.pathname !== '/force-password-change') {
+        return <Navigate to="/force-password-change" replace />;
+    }
+
     if (allowedRoles && !allowedRoles.includes(user.role as any)) {
         // If the user is an admin but the route doesn't allow admins (e.g. student-only), redirect to admin dashboard
         if ((user.role as any) === 'admin') return <Navigate to="/admin/dashboard" replace />;

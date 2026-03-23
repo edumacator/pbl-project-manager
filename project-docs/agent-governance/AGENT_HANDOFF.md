@@ -247,3 +247,4 @@ Summary:
 Prior intent preserved: Maintaining a clear, calm, and actionable workflow for students and teachers by providing descriptive feedback during session expiration.
 New constraints: None.
 Notes for Antigravity: Future authenticated routes should follow the 401 vs 403 pattern established in `index.php`.
+$content

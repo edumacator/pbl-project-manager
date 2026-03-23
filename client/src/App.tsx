@@ -20,6 +20,7 @@ import AdminOverview from './pages/admin/AdminOverview';
 import UserManagement from './pages/admin/UserManagement';
 import ClassOverview from './pages/admin/ClassOverview';
 import Calendar from './pages/Calendar';
+import ForcePasswordChange from './pages/ForcePasswordChange';
 
 function App() {
     return (
@@ -29,6 +30,7 @@ function App() {
                     <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/signup" element={<Signup />} />
+                        <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
                         <Route path="/" element={<ProtectedRoute />} >
                             <Route element={<Layout />}>

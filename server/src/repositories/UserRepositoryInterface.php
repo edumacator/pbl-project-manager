@@ -16,4 +16,5 @@ interface UserRepositoryInterface
     public function search(string $query, ?string $role = null): array;
     public function updateAuthToken(int $userId, ?string $token): void;
     public function updatePassword(int $userId, string $hash): void;
+    public function setRequiresPasswordChange(int $userId, bool $requires): void;
 }

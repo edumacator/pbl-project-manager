@@ -5,6 +5,7 @@ export interface User {
     last_name: string;
     email: string;
     role: 'teacher' | 'student' | 'admin';
+    requires_password_change: boolean;
 }
 
 export interface Class {
