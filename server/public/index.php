@@ -158,6 +158,32 @@ if ($uri === '/api/v1/auth/login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+if ($uri === '/api/v1/auth/change-password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Please log in']]);
+        exit;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $newPassword = $input['newPassword'] ?? '';
+
+    if (empty($newPassword) || strlen($newPassword) < 6) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'INVALID_INPUT', 'message' => 'Password must be at least 6 characters']]);
+        exit;
+    }
+
+    try {
+        $authService->changePassword($currentUser->id, $newPassword);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
 if ($uri === '/api/v1/auth/register' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     try {

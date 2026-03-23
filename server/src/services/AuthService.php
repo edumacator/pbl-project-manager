@@ -58,8 +58,16 @@ class AuthService
 
         $hash = password_hash($newPassword, PASSWORD_DEFAULT);
         $this->userRepo->updatePassword($studentId, $hash);
+        $this->userRepo->setRequiresPasswordChange($studentId, true);
         // We could also invalidate their token here if desired
         $this->userRepo->updateAuthToken($studentId, null);
+    }
+
+    public function changePassword(int $userId, string $newPassword): void
+    {
+        $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+        $this->userRepo->updatePassword($userId, $hash);
+        $this->userRepo->setRequiresPasswordChange($userId, false);
     }
 
     public function authenticateByToken(string $token): ?User
