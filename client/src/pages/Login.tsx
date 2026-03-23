@@ -13,6 +13,20 @@ const Login: React.FC = () => {
     const navigate = useNavigate();
     const { addToast } = useToast();
 
+    React.useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const wasExpired = params.get('expired') || localStorage.getItem('session_expired');
+        
+        if (wasExpired) {
+            addToast('Your session has expired. Please sign in again.', 'info');
+            // Clean up
+            if (params.get('expired')) {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+            localStorage.removeItem('session_expired');
+        }
+    }, [addToast]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);

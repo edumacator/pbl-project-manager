@@ -145,7 +145,7 @@ const CreateProject: React.FC = () => {
                 title,
                 driving_question: dq,
                 description,
-                teacher_id: user?.id,
+                author_id: user?.id,
                 class_ids: selectedClassIds.map(Number),
                 due_date: dueDate || null,
                 requires_reflection: requiresReflection,

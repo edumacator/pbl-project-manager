@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, CheckSquare, LogOut, Plus, Users, ShieldCheck, Calendar as CalendarIcon } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, CheckSquare, LogOut, Plus, Users, ShieldCheck, Calendar as CalendarIcon, Menu, X } from 'lucide-react';
 import { api } from '../api/client';
 import { Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ const Layout: React.FC = () => {
     const location = useLocation();
     const { user, logout } = useAuth();
     const [projects, setProjects] = useState<Project[]>([]);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const fetchProjects = () => {
         api.get<Project[]>('/projects')
@@ -32,14 +33,34 @@ const Layout: React.FC = () => {
     }, []);
 
     return (
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen bg-gray-50 overflow-hidden">
+            {/* Mobile Sidebar Overlay */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar */}
-            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+            <aside className={`
+                fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-300 ease-in-out
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                lg:translate-x-0 lg:static lg:inset-0
+            `}>
                 <div className="p-6">
-                    <h1 className="text-xl font-bold text-indigo-600 flex items-center gap-2 mb-4">
-                        <FolderKanban className="w-6 h-6" />
-                        PBL Manager
-                    </h1>
+                    <div className="flex items-center justify-between mb-4">
+                        <h1 className="text-xl font-bold text-indigo-600 flex items-center gap-2">
+                            <FolderKanban className="w-6 h-6" />
+                            PBL Manager
+                        </h1>
+                        <button 
+                            onClick={() => setIsSidebarOpen(false)}
+                            className="p-2 text-gray-400 hover:text-gray-600 lg:hidden"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
 
                     {/* Current User Profile Info */}
                     {user && (
@@ -59,15 +80,15 @@ const Layout: React.FC = () => {
 
                     {user?.role === 'teacher' && (
                         <>
-                            <Link to="/teacher/dashboard" className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/teacher/dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Link to="/teacher/dashboard" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/teacher/dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <LayoutDashboard className="w-5 h-5 mr-3" />
                                 Dashboard
                             </Link>
-                            <Link to="/teacher/student-detail" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/teacher/student-detail' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Link to="/teacher/student-detail" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/teacher/student-detail' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <Users className="w-5 h-5 mr-3" />
                                 Student Detail
                             </Link>
-                            <Link to="/calendar" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Link to="/calendar" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <CalendarIcon className="w-5 h-5 mr-3" />
                                 Calendar
                             </Link>
@@ -75,19 +96,19 @@ const Layout: React.FC = () => {
                     )}
                     {(user?.role as any) === 'admin' && (
                         <>
-                            <Link to="/teacher/dashboard" className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/teacher/dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Link to="/teacher/dashboard" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/teacher/dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <LayoutDashboard className="w-5 h-5 mr-3" />
                                 Dashboard
                             </Link>
-                            <Link to="/teacher/student-detail" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/teacher/student-detail' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Link to="/teacher/student-detail" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/teacher/student-detail' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <Users className="w-5 h-5 mr-3" />
                                 Student Detail
                             </Link>
-                            <Link to="/admin/dashboard" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors bg-amber-50 text-amber-700 hover:bg-amber-100`}>
+                            <Link to="/admin/dashboard" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors bg-amber-50 text-amber-700 hover:bg-amber-100`}>
                                 <ShieldCheck className="w-5 h-5 mr-3" />
                                 Admin Dashboard
                             </Link>
-                            <Link to="/calendar" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Link to="/calendar" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <CalendarIcon className="w-5 h-5 mr-3" />
                                 Calendar
                             </Link>
@@ -96,7 +117,7 @@ const Layout: React.FC = () => {
 
                     {user?.role === 'student' && (
                         <>
-                            <Link to="/student/today" className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/student/today' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Link to="/student/today" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/student/today' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <CheckSquare className="w-5 h-5 mr-3" />
                                 Student Today
                             </Link>
@@ -116,7 +137,12 @@ const Layout: React.FC = () => {
                             {projects.map(p => {
                                 const destination = (user?.role === 'teacher' || (user?.role as any) === 'admin') ? `/projects/${p.id}` : `/student/projects/${p.id}`;
                                 return (
-                                    <Link key={p.id} to={destination} className={`flex items-center px-4 py-2 text-sm rounded-lg transition-colors ${location.pathname === destination ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                                    <Link 
+                                        key={p.id} 
+                                        to={destination} 
+                                        onClick={() => setIsSidebarOpen(false)}
+                                        className={`flex items-center px-4 py-2 text-sm rounded-lg transition-colors ${location.pathname === destination ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                                    >
                                         <FolderKanban className="w-4 h-4 mr-3 opacity-70" />
                                         <span className="truncate">{p.title}</span>
                                     </Link>
@@ -140,8 +166,23 @@ const Layout: React.FC = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-auto">
-                <div className="p-8">
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                {/* Mobile Header */}
+                <header className="lg:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-30">
+                    <button 
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="p-2 -ml-2 text-gray-500 hover:text-indigo-600 transition-colors"
+                    >
+                        <Menu className="w-6 h-6" />
+                    </button>
+                    <h1 className="text-lg font-bold text-indigo-600 flex items-center gap-2">
+                        <FolderKanban className="w-5 h-5" />
+                        PBL Manager
+                    </h1>
+                    <div className="w-10"></div> {/* Spacer for symmetry */}
+                </header>
+
+                <div className="flex-1 overflow-auto p-4 lg:p-8">
                     <Outlet />
                 </div>
             </main>

@@ -28,9 +28,9 @@ const AdminLayout: React.FC = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        <div className="h-screen bg-gray-50 flex overflow-hidden">
             {/* Sidebar */}
-            <aside className="w-64 bg-indigo-900 text-white flex flex-col shadow-xl">
+            <aside className="w-64 bg-indigo-900 text-white flex flex-col shadow-xl sticky top-0 h-screen flex-shrink-0">
                 <div className="p-6 flex items-center gap-3">
                     <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
                         <FolderKanban className="w-6 h-6 text-white" />

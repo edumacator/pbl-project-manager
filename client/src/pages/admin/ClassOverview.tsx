@@ -13,7 +13,7 @@ interface ClassData {
     class: {
         id: number;
         name: string;
-        teacher_id: number;
+        staff_id: number;
         join_code: string;
         created_at: string;
     };

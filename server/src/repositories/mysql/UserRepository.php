@@ -48,8 +48,8 @@ class UserRepository implements UserRepositoryInterface
     public function create(User $user): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO users (first_name, last_name, name, email, role, password_hash, auth_token)
-            VALUES (:first_name, :last_name, :name, :email, :role, :password_hash, :auth_token)
+            INSERT INTO users (first_name, last_name, name, email, role, password_hash, auth_token, student_id)
+            VALUES (:first_name, :last_name, :name, :email, :role, :password_hash, :auth_token, :student_id)
         ");
 
         $stmt->execute([
@@ -59,7 +59,8 @@ class UserRepository implements UserRepositoryInterface
             ':email' => $user->email,
             ':role' => $user->role,
             ':password_hash' => $user->password_hash,
-            ':auth_token' => $user->auth_token
+            ':auth_token' => $user->auth_token,
+            ':student_id' => $user->student_id
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -69,7 +70,7 @@ class UserRepository implements UserRepositoryInterface
     {
         $stmt = $this->pdo->prepare("
             UPDATE users 
-            SET first_name = :first_name, last_name = :last_name, name = :name, email = :email, role = :role
+            SET first_name = :first_name, last_name = :last_name, name = :name, email = :email, role = :role, student_id = :student_id
             WHERE id = :id
         ");
 
@@ -79,6 +80,7 @@ class UserRepository implements UserRepositoryInterface
             ':name' => $user->name,
             ':email' => $user->email,
             ':role' => $user->role,
+            ':student_id' => $user->student_id,
             ':id' => $user->id
         ]);
     }
@@ -119,7 +121,8 @@ class UserRepository implements UserRepositoryInterface
             $row['first_name'] ?? '',
             $row['last_name'] ?? '',
             $row['password_hash'] ?? null,
-            $row['auth_token'] ?? null
+            $row['auth_token'] ?? null,
+            $row['student_id'] ?? null
         );
     }
 
