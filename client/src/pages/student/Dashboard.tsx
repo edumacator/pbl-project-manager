@@ -3,15 +3,18 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import { Task } from '../../types';
-import { Clock, AlertCircle, MessageSquare, Lock, PartyPopper, AlertTriangle, Layers, UserPlus } from 'lucide-react';
+import { Clock, AlertCircle, MessageSquare, Lock, PartyPopper, AlertTriangle, Layers, UserPlus, Paperclip } from 'lucide-react';
 import StuckTaskModal from '../../components/StuckTaskModal';
 import { useToast } from '../../contexts/ToastContext';
 
 // Fix type inheritance issue where Task import was missing
 interface DashboardTask extends Task {
-    priority: string;
+    priority: "P1" | "P2" | "P3" | undefined;
     project_title: string;
     blocker_count: number;
+    resource_count?: number;
+    subtask_count?: number;
+    completed_subtask_count?: number;
 }
 
 interface DashboardData {
@@ -195,12 +198,30 @@ const StudentDashboard: React.FC = () => {
                                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Recently Finished</h3>
                                             <div className="space-y-3 opacity-70">
                                                 {completed_tasks.map(task => (
-                                                    <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
-                                                        <div>
-                                                            <h4 className="font-medium text-gray-700 line-through decoration-gray-300">{task.title}</h4>
-                                                            <p className="text-[10px] text-gray-400">{task.project_title}</p>
+                                                    <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-2">
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <h4 className="font-medium text-gray-700 line-through decoration-gray-300">{task.title}</h4>
+                                                                <p className="text-[10px] text-gray-400">{task.project_title}</p>
+                                                            </div>
+                                                            <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold">Done</span>
                                                         </div>
-                                                        <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold">Done</span>
+                                                        <div className="flex items-center gap-2">
+                                                            {task.priority && (
+                                                                <span className={`text-[8px] font-black px-1 rounded border uppercase tracking-tighter ${
+                                                                    task.priority === 'P1' ? 'bg-red-50 text-red-600 border-red-100' :
+                                                                    task.priority === 'P2' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                                                    'bg-gray-50 text-gray-400 border-gray-100'
+                                                                }`}>
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {task.resource_count !== undefined && task.resource_count > 0 && (
+                                                                <div title={`${task.resource_count} resources attached`}>
+                                                                    <Paperclip className="w-3 h-3 text-indigo-300" />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -209,9 +230,10 @@ const StudentDashboard: React.FC = () => {
                                 </div>
                             ) : (
                                 regularTasks.map(task => (
-                                    <div key={task.id} className={`bg-white p-5 rounded-xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all ${task.priority === 'high' ? 'border-l-4 border-l-red-500' :
-                                        task.priority === 'low' ? 'border-l-4 border-l-gray-300' : 'border-l-4 border-l-blue-400'
-                                        }`}>
+                                    <div key={task.id} className={`bg-white p-5 rounded-xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all ${
+                                        task.priority === 'P1' ? 'border-l-4 border-l-red-500' :
+                                        task.priority === 'P3' ? 'border-l-4 border-l-gray-300' : 'border-l-4 border-l-indigo-400'
+                                    }`}>
 
                                         {/* Status / Checkbox */}
                                         <div className="absolute top-5 left-4">
@@ -220,11 +242,6 @@ const StudentDashboard: React.FC = () => {
 
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex flex-col">
-                                                <span className={`text-xs font-bold uppercase tracking-wide mb-1 ${task.priority === 'high' ? 'text-red-600' :
-                                                    task.priority === 'low' ? 'text-gray-500' : 'text-blue-500'
-                                                    }`}>
-                                                    {task.priority || 'Medium'} Priority
-                                                </span>
                                                 <h3 className="text-lg font-bold text-gray-900 group-hover:text-indigo-600">
                                                     <Link to={`/student/projects/${task.project_id}?task=${task.id}`}>
                                                         {task.title}
@@ -238,25 +255,71 @@ const StudentDashboard: React.FC = () => {
 
                                         <p className="text-sm text-gray-600 mb-3 line-clamp-2">{task.description || 'No description'}</p>
 
-                                        {/* Meta: Due Date, Blockers, Stuck */}
-                                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                                            {task.due_date && (
-                                                <span className={`px-2 py-1 rounded font-medium ${new Date(task.due_date) < new Date() ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                                                    Due: {new Date(task.due_date).toLocaleDateString()}
-                                                </span>
+                                        {/* Progressive Subtask Bar */}
+                                        <div className="mb-4">
+                                            {task.subtask_count !== undefined && task.subtask_count > 0 && (
+                                                <div className="w-full">
+                                                    <div className="flex justify-between text-[8px] font-bold text-gray-400 mb-1 tracking-tighter">
+                                                        <span>PROGRESS</span>
+                                                        <span>{Math.round(((task.completed_subtask_count || 0) / task.subtask_count) * 100)}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="bg-indigo-500 h-full transition-all duration-300"
+                                                            style={{ width: `${((task.completed_subtask_count || 0) / task.subtask_count) * 100}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
                                             )}
+                                        </div>
 
-                                            {Number(task.blocker_count) > 0 && (
-                                                <span className="flex items-center text-red-600 bg-red-50 px-2 py-1 rounded">
-                                                    <Lock className="w-3 h-3 mr-1" /> Blocked
-                                                </span>
-                                            )}
+                                        {/* Meta Footer Row - Sync with Board Layout */}
+                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-50">
+                                            <div className="flex items-center gap-2">
+                                                {task.priority && (
+                                                    <span className={`text-[8px] font-black px-1 rounded border uppercase tracking-tighter ${
+                                                        task.priority === 'P1' ? 'bg-red-50 text-red-600 border-red-100' :
+                                                        task.priority === 'P2' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                                        'bg-gray-50 text-gray-400 border-gray-100'
+                                                    }`}>
+                                                        {task.priority}
+                                                    </span>
+                                                )}
 
-                                            {task.is_stuck && (
-                                                <span className="flex items-center text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">
-                                                    <AlertTriangle className="w-3 h-3 mr-1" /> Stuck (3+ days)
-                                                </span>
-                                            )}
+                                                {task.resource_count !== undefined && task.resource_count > 0 && (
+                                                    <div title={`${task.resource_count} resources attached`}>
+                                                        <Paperclip className="w-3 h-3 text-indigo-400" />
+                                                    </div>
+                                                )}
+
+                                                {task.is_stuck && (
+                                                    <div title="This task is stuck">
+                                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                                    </div>
+                                                )}
+
+                                                {Number(task.blocker_count) > 0 && (
+                                                    <span className="flex items-center text-red-600 bg-red-50 px-1.5 py-0.5 rounded text-[8px] font-bold border border-red-100">
+                                                        <Lock className="w-2.5 h-2.5 mr-1" /> BLOCKED
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                {task.due_date && (
+                                                    <div className={`text-[10px] flex items-center gap-1 font-bold italic ${
+                                                        new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'
+                                                    }`}>
+                                                        <Clock className="w-3 h-3" />
+                                                        {new Date(task.due_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                        {new Date(task.due_date) < new Date() && (
+                                                            <div title="Overdue">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 ))

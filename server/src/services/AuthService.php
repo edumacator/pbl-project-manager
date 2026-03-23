@@ -47,7 +47,7 @@ class AuthService
         return $user;
     }
 
-    public function resetStudentPassword(int $teacherId, int $studentId, string $newPassword): void
+    public function resetStudentPassword(int $staffId, int $studentId, string $newPassword): void
     {
         // Ideally we would verify the student belongs to one of the teacher's classes here.
         // For MVP, we'll verify the target user is a student.

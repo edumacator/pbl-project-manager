@@ -26,9 +26,10 @@ export const request = async <T = any>(url: string, options: RequestInit = {}): 
         headers,
     });
 
-    if (response.status === 401 && !url.includes('/auth/login')) {
+    if ((response.status === 401 || response.status === 403) && !url.includes('/auth/login')) {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
+        localStorage.setItem('session_expired', 'true');
         window.location.href = '/login';
         throw new Error('Session expired or unauthorized');
     }
@@ -55,6 +56,9 @@ export const api = {
     // Tasks
     updateTask: (taskId: number, data: Partial<any>) =>
         request<{ task: any }>(`/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    
+    hardDeleteTask: (taskId: number) =>
+        request<{ deleted: boolean }>(`/tasks/${taskId}/hard`, { method: 'DELETE' }),
 
     // Task Feedback
     submitFeedback: (taskId: number, data: { warm_feedback: string; cool_feedback: string; requires_revision: boolean }) =>

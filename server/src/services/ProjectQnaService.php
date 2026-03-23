@@ -34,13 +34,13 @@ class ProjectQnaService
         return $qna;
     }
 
-    public function answerQuestion(int $qnaId, int $teacherId, string $answer): bool
+    public function answerQuestion(int $qnaId, int $staffId, string $answer): bool
     {
         if (empty(trim($answer))) {
             throw new \InvalidArgumentException("Answer cannot be empty.");
         }
 
-        return $this->qnaRepo->answer($qnaId, $teacherId, $answer);
+        return $this->qnaRepo->answer($qnaId, $staffId, $answer);
     }
 
     /**

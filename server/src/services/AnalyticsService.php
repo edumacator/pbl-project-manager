@@ -20,17 +20,24 @@ class AnalyticsService
     public function getAtRiskStudents(int $authorId): array
     {
         $sql = "
-            SELECT u.id as student_id, u.name, COUNT(t.id) as overdue_count
+            SELECT 
+                u.id as student_id, 
+                u.name, 
+                p.id as project_id, 
+                p.title as project_title,
+                tm.class_id,
+                COUNT(t.id) as overdue_count
             FROM users u
             JOIN tasks t ON t.assignee_id = u.id
             JOIN projects p ON t.project_id = p.id
+            JOIN teams tm ON t.team_id = tm.id 
             WHERE p.author_id = :author_id
               AND t.status != 'done'
               AND t.due_date IS NOT NULL
               AND t.due_date < NOW()
               AND t.deleted_at IS NULL
               AND p.deleted_at IS NULL
-            GROUP BY u.id, u.name
+            GROUP BY u.id, u.name, p.id, p.title, tm.class_id
             ORDER BY overdue_count DESC
         ";
 

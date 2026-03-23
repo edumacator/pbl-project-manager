@@ -19,6 +19,8 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, isO
     // Classes
     const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
     const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
+    const [requiresMilestoneReflection, setRequiresMilestoneReflection] = useState(project.requires_milestone_reflection || false);
+    const [requireCritique, setRequireCritique] = useState(project.require_critique || false);
 
     const [loading, setLoading] = useState(false);
     const { addToast } = useToast();
@@ -36,6 +38,8 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, isO
             } else {
                 setSelectedClassIds([]);
             }
+            setRequiresMilestoneReflection(project.requires_milestone_reflection || false);
+            setRequireCritique(project.require_critique || false);
 
             // Fetch available classes
             fetchClasses();
@@ -62,7 +66,9 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, isO
                 driving_question: drivingQuestion,
                 description,
                 due_date: dueDate || null,
-                class_ids: selectedClassIds
+                class_ids: selectedClassIds,
+                requires_milestone_reflection: requiresMilestoneReflection,
+                require_critique: requireCritique
             });
             window.dispatchEvent(new CustomEvent('projects-changed'));
             onProjectUpdated(updated.project);
@@ -164,6 +170,35 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, isO
                                     ))
                                 )}
                             </div>
+                        </div>
+
+                        {/* Toggles */}
+                        <div className="space-y-3 pt-2">
+                            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={requiresMilestoneReflection}
+                                    onChange={e => setRequiresMilestoneReflection(e.target.checked)}
+                                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                                />
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-gray-900">Require Milestone Reflections</p>
+                                    <p className="text-xs text-gray-500">Students must submit a reflection at each project milestone.</p>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={requireCritique}
+                                    onChange={e => setRequireCritique(e.target.checked)}
+                                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                                />
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-gray-900">Enable Peer Critique</p>
+                                    <p className="text-xs text-gray-500">Students can provide "Warm & Cool" feedback on tasks.</p>
+                                </div>
+                            </label>
                         </div>
                     </div>
 

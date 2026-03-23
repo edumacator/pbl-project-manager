@@ -31,6 +31,7 @@ class Task implements JsonSerializable
     public ?array $subtasks = null;
     public ?int $subtaskCount = null;
     public ?int $completedSubtaskCount = null;
+    public ?int $resourceCount = null; // New
     public ?array $checklist = null; // New
     public ?array $checklistSummary = null; // New
 
@@ -114,6 +115,7 @@ class Task implements JsonSerializable
             'subtasks' => $this->subtasks,
             'subtask_count' => $this->subtaskCount,
             'completed_subtask_count' => $this->completedSubtaskCount,
+            'resource_count' => $this->resourceCount,
             'checklist' => $this->checklist,
             'checklist_summary' => $this->checklistSummary
         ];

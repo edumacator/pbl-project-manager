@@ -13,14 +13,16 @@ class ProjectBoardService
     private TeamRepository $teamRepo;
     private TaskRepository $taskRepo;
     private CheckpointRepository $checkpointRepo;
+    private TaskService $taskService;
 
-    public function __construct()
+    public function __construct(TaskService $taskService)
     {
         // Manual injection for now, as per pattern
         $this->projectRepo = new ProjectRepository();
         $this->teamRepo = new TeamRepository();
         $this->taskRepo = new TaskRepository();
         $this->checkpointRepo = new CheckpointRepository();
+        $this->taskService = $taskService;
     }
 
     public function getTeamContext(int $projectId, int $studentId): array
@@ -52,7 +54,7 @@ class ProjectBoardService
         }
 
         // 3. Get Team Tasks
-        $tasks = $studentTeam ? $this->taskRepo->findByProjectId($projectId, $studentTeam->id) : [];
+        $tasks = $studentTeam ? $this->taskService->getTasksByProject($projectId, $studentTeam->id) : [];
 
         // 4. Get Milestones/Checkpoints
         // We need class-specific checkpoints too.

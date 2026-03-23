@@ -38,6 +38,7 @@ interface CalendarViewProps {
     initialScope?: 'my-tasks' | 'my-team' | 'all';
     showHeader?: boolean;
     showFilters?: boolean;
+    onEventClick?: (event: CalendarEvent) => void;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({ 
@@ -45,7 +46,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     teamId, 
     initialScope,
     showHeader = true,
-    showFilters = true
+    showFilters = true,
+    onEventClick
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -143,6 +145,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleEventClick = (event: CalendarEvent) => {
+    if (onEventClick) {
+      onEventClick(event);
+      setExpandedDay(null); // Close the detail overlay if open
+      return;
+    }
+
+    setExpandedDay(null);
     const query = event.sourceType === 'task' ? `?task=${event.sourceId}` : '';
     const basePath = user?.role === 'teacher' || user?.role === 'admin' 
       ? `/projects/${event.project_id}` 
@@ -497,9 +506,30 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="w-full animate-in fade-in duration-500">
-      <div className="flex flex-col gap-6">
-
-        {showHeader && renderHeader()}
+      <div className="flex flex-col gap-5">
+        {showHeader && (
+          <div>
+            {renderHeader()}
+            <div className="flex flex-wrap items-center gap-4 mt-[-1rem] mb-4 px-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] shadow-sm"></span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Milestones</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] shadow-sm"></span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">End Dates</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] shadow-sm"></span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shadow-sm"></span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex flex-col items-center justify-center h-[500px] bg-white rounded-2xl border border-slate-100 shadow-sm gap-4">
@@ -518,25 +548,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             {viewMode === 'day' && renderDayView()}
           </div>
         )}
-
-        <div className="flex flex-wrap items-center gap-6 px-6 py-4 bg-slate-50 rounded-xl border border-slate-200/50">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#EF4444] shadow-sm"></span>
-            <span className="text-[11px] font-semibold text-slate-600 uppercase">Milestones</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#8B5CF6] shadow-sm"></span>
-            <span className="text-[11px] font-semibold text-slate-600 uppercase">Project End</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#10B981] shadow-sm"></span>
-            <span className="text-[11px] font-semibold text-slate-600 uppercase">Completed</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#3B82F6] shadow-sm"></span>
-            <span className="text-[11px] font-semibold text-slate-600 uppercase">Active Tasks</span>
-          </div>
-        </div>
       </div>
 
       {/* Popover */}

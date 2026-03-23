@@ -80,6 +80,70 @@ class AdminService
         return $stats;
     }
 
+    public function bulkCreateUsers(array $users, string $role): array
+    {
+        $created = 0;
+        $failed = [];
+
+        foreach ($users as $index => $userData) {
+            $firstName = $userData['first_name'] ?? $userData['firstName'] ?? '';
+            $lastName = $userData['last_name'] ?? $userData['lastName'] ?? '';
+            $email = $userData['email'] ?? '';
+            $password = $userData['password'] ?? '';
+            $studentId = $userData['student_id'] ?? $userData['studentId'] ?? null;
+
+            if (empty($firstName) || empty($lastName) || empty($email) || empty($password)) {
+                $failed[] = [
+                    'row' => $index + 1,
+                    'email' => $email,
+                    'reason' => 'Missing required fields'
+                ];
+                continue;
+            }
+
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $failed[] = [
+                    'row' => $index + 1,
+                    'email' => $email,
+                    'reason' => 'Invalid email format'
+                ];
+                continue;
+            }
+
+            $existing = $this->userRepo->findByEmail($email);
+            if ($existing) {
+                $failed[] = [
+                    'row' => $index + 1,
+                    'email' => $email,
+                    'reason' => 'Email already exists'
+                ];
+                continue;
+            }
+
+            try {
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+                $name = trim("$firstName $lastName");
+                $token = bin2hex(random_bytes(32));
+
+                $user = new \App\Domain\User($name, $email, $role, null, $firstName, $lastName, $hash, $token, $studentId);
+                $this->userRepo->create($user);
+                $created++;
+            } catch (\Exception $e) {
+                $failed[] = [
+                    'row' => $index + 1,
+                    'email' => $email,
+                    'reason' => 'Internal error: ' . $e->getMessage()
+                ];
+            }
+        }
+
+        return [
+            'created' => $created,
+            'failed' => $failed,
+            'total' => count($users)
+        ];
+    }
+
     public function getAllClasses(): array
     {
         return $this->classRepo->findAllWithTeachers();

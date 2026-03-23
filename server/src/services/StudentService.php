@@ -16,7 +16,7 @@ class StudentService
         $this->userRepo = $userRepo;
     }
 
-    public function getAtRiskStudents(int $teacherId, ?int $classId = null, ?int $projectId = null): array
+    public function getAtRiskStudents(int $staffId, ?int $classId = null, ?int $projectId = null): array
     {
         $overdueTasks = $this->taskRepo->findAllOverdue();
         $atRisk = [];

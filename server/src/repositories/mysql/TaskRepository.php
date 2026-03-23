@@ -139,6 +139,12 @@ class TaskRepository implements TaskRepositoryInterface
         return $stmt->execute([':id' => $id]);
     }
 
+    public function hardDelete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM tasks WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
     public function restore(int $id): bool
     {
         $stmt = $this->pdo->prepare("UPDATE tasks SET deleted_at = NULL WHERE id = :id");

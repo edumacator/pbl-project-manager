@@ -23,12 +23,12 @@ class ProjectQnaRepository
         return (int) $this->db->lastInsertId();
     }
 
-    public function answer(int $qnaId, int $teacherId, string $answer): bool
+    public function answer(int $qnaId, int $staffId, string $answer): bool
     {
         $stmt = $this->db->prepare(
             "UPDATE project_qna SET answer = ?, answered_by = ?, updated_at = NOW() WHERE id = ?"
         );
-        return $stmt->execute([$answer, $teacherId, $qnaId]);
+        return $stmt->execute([$answer, $staffId, $qnaId]);
     }
 
     /**

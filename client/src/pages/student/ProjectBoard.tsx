@@ -307,31 +307,31 @@ export const StudentProjectBoard: React.FC = () => {
 
                 <div className="flex bg-gray-100 p-1 rounded-lg">
                     <button
-                        onClick={() => setActiveTab('home')}
+                        onClick={() => { setActiveTab('home'); if (searchParams.has('task')) { searchParams.delete('task'); setSearchParams(searchParams); } }}
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'home' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <div className="flex items-center"><Home className="w-4 h-4 mr-2" /> Home</div>
                     </button>
                     <button
-                        onClick={() => setActiveTab('board')}
+                        onClick={() => { setActiveTab('board'); if (searchParams.has('task')) { searchParams.delete('task'); setSearchParams(searchParams); } }}
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'board' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <div className="flex items-center"><LayoutIcon className="w-4 h-4 mr-2" /> Board</div>
                     </button>
                     <button
-                        onClick={() => setActiveTab('timeline')}
+                        onClick={() => { setActiveTab('timeline'); if (searchParams.has('task')) { searchParams.delete('task'); setSearchParams(searchParams); } }}
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'timeline' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" /> Timeline</div>
                     </button>
                     <button
-                        onClick={() => setActiveTab('calendar')}
+                        onClick={() => { setActiveTab('calendar'); if (searchParams.has('task')) { searchParams.delete('task'); setSearchParams(searchParams); } }}
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'calendar' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" /> Calendar</div>
                     </button>
                     <button
-                        onClick={() => setActiveTab('resources')}
+                        onClick={() => { setActiveTab('resources'); if (searchParams.has('task')) { searchParams.delete('task'); setSearchParams(searchParams); } }}
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'resources' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <div className="flex items-center"><Book className="w-4 h-4 mr-2" /> Resources</div>
@@ -341,13 +341,13 @@ export const StudentProjectBoard: React.FC = () => {
 
             {/* Content */}
             <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 overflow-hidden bg-gray-50 relative">
+                <div className={`flex-1 ${activeTab === 'home' ? 'overflow-y-auto' : 'overflow-hidden'} bg-gray-50 relative`}>
                     {activeTab === 'home' && data.project && (
                         <ProjectHomeView
                             project={data.project}
                             currentUser={user}
                             teams={data.team ? [data.team] : []}
-                            tasks={data.tasks || []}
+                            tasks={(data.tasks || []).filter((t: Task) => !t.parent_task_id)}
                             onTeamSelect={() => setActiveTab('board')}
                             onProjectUpdate={() => { }}
                         />
@@ -355,7 +355,7 @@ export const StudentProjectBoard: React.FC = () => {
                     {activeTab === 'board' && (
                         data.team ? (
                             <TeamKanban
-                                tasks={data.tasks}
+                                tasks={data.tasks.filter((t: Task) => !t.parent_task_id)}
                                 onTaskMove={handleTaskMove}
                                 onTaskClaim={handleTaskClaim}
                                 onTaskClick={(task) => setSelectedTask(task)}
@@ -394,6 +394,11 @@ export const StudentProjectBoard: React.FC = () => {
                                 teamId={data.team?.id}
                                 showHeader={true}
                                 showFilters={false}
+                                onEventClick={(event) => {
+                                    if (event.sourceType === 'task') {
+                                        setSearchParams({ ...Object.fromEntries(searchParams), task: event.sourceId.toString() });
+                                    }
+                                }}
                             />
                         </div>
                     )}

@@ -16,6 +16,7 @@ const TeacherDashboard: React.FC = () => {
     const [newClassName, setNewClassName] = useState('');
     const [selectedClassForMilestones, setSelectedClassForMilestones] = useState<Class | null>(null);
     const [showArchived, setShowArchived] = useState(false);
+    const [activeMobileTab, setActiveMobileTab] = useState<'classes' | 'projects' | 'activity' | 'stuck'>('classes');
     const { addToast } = useToast();
 
     const fetchData = () => {
@@ -119,11 +120,39 @@ const TeacherDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* <AnalyticsSummary />  Moving analytics to a dedicated stats view or keeping it slim at top if needed, skipping for layout space */}
+            {/* <AnalyticsSummary /> */}
+
+            {/* Mobile Tab Switcher */}
+            <div className="lg:hidden flex border-b border-gray-200 bg-white sticky top-0 z-20">
+                <button
+                    onClick={() => setActiveMobileTab('classes')}
+                    className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${activeMobileTab === 'classes' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}
+                >
+                    Classes
+                </button>
+                <button
+                    onClick={() => setActiveMobileTab('projects')}
+                    className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${activeMobileTab === 'projects' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}
+                >
+                    Projects
+                </button>
+                <button
+                    onClick={() => setActiveMobileTab('activity')}
+                    className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${activeMobileTab === 'activity' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}
+                >
+                    Activity
+                </button>
+                <button
+                    onClick={() => setActiveMobileTab('stuck')}
+                    className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${activeMobileTab === 'stuck' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}
+                >
+                    Stuck
+                </button>
+            </div>
 
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 p-4 overflow-hidden min-h-0">
                 {/* Pane 1: Classes */}
-                <div className="flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className={`${activeMobileTab === 'classes' ? 'flex' : 'hidden'} lg:flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden`}>
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h2 className="font-semibold text-gray-800 flex items-center">
                             <BookOpen className="w-4 h-4 mr-2" /> Classes
@@ -146,7 +175,7 @@ const TeacherDashboard: React.FC = () => {
                                 <div key={cls.id} className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all">
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-medium text-gray-900">{cls.name}</h3>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
+                                        <div className="lg:opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
                                             <button
                                                 onClick={() => setSelectedClassForMilestones(cls)}
                                                 className="text-gray-400 hover:text-indigo-500"
@@ -177,7 +206,7 @@ const TeacherDashboard: React.FC = () => {
                 </div>
 
                 {/* Pane 2: Projects */}
-                <div className="flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className={`${activeMobileTab === 'projects' ? 'flex' : 'hidden'} lg:flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden`}>
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h2 className="font-semibold text-gray-800 flex items-center">
                             <Layout className="w-4 h-4 mr-2" /> Projects
@@ -241,12 +270,12 @@ const TeacherDashboard: React.FC = () => {
                 </div>
 
                 {/* Pane 3: Student Activity */}
-                <div className="flex flex-col h-full overflow-hidden">
+                <div className={`${activeMobileTab === 'activity' ? 'flex' : 'hidden'} lg:flex flex-col h-full overflow-hidden`}>
                     <StudentActivityPane />
                 </div>
 
                 {/* Pane 4: Stuck Teams */}
-                <div className="flex flex-col h-full overflow-hidden">
+                <div className={`${activeMobileTab === 'stuck' ? 'flex' : 'hidden'} lg:flex flex-col h-full overflow-hidden`}>
                     <StuckTeamsPane />
                 </div>
             </div>

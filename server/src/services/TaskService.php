@@ -439,9 +439,11 @@ class TaskService
     public function getTasksByProject(int $projectId, ?int $teamId = null, bool $includeDeleted = false): array
     {
         $tasks = $this->taskRepo->findByProjectId($projectId, $teamId, $includeDeleted);
+        $resourceCounts = $this->resourceRepo->getResourceCountsForProject($projectId);
 
         // Enrich tasks
         foreach ($tasks as $task) {
+            $task->resourceCount = $resourceCounts[$task->id] ?? 0;
             $task->isCompletable = $this->reviewService->isTaskCompletable($task->id);
 
             // Subtask enrichment (using the already fetched $tasks array)
@@ -469,6 +471,7 @@ class TaskService
     {
         $task = $this->taskRepo->findById($taskId);
         if ($task) {
+            $task->resourceCount = count($this->resourceRepo->findByTaskId($taskId));
             $task->isCompletable = $this->reviewService->isTaskCompletable($task->id);
             $task->checklist = $this->checklistRepo->findByTaskId($taskId);
             
@@ -484,6 +487,11 @@ class TaskService
     public function deleteTask(int $taskId): bool
     {
         return $this->taskRepo->delete($taskId);
+    }
+
+    public function hardDeleteTask(int $taskId): bool
+    {
+        return $this->taskRepo->hardDelete($taskId);
     }
 
     public function restoreTask(int $taskId): bool

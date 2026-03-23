@@ -61,7 +61,7 @@ const StuckTeamsPane: React.FC = () => {
 
                                     <div className="mt-3 text-right">
                                         <Link
-                                            to={`/projects/${t.project_id}`}
+                                            to={`/projects/${t.project_id}?view=board&team_id=${t.team_id}`}
                                             className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                                         >
                                             View Board &rarr;
