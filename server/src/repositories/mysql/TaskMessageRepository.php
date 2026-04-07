@@ -32,17 +32,29 @@ class TaskMessageRepository
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function findByTaskId(int $taskId): array
+    public function findByTaskId(int $taskId, ?int $limit = null): array
     {
-        $stmt = $this->pdo->prepare("
+        $sql = "
             SELECT tm.*, u.name as user_name
             FROM task_messages tm
             JOIN users u ON tm.user_id = u.id
             WHERE tm.task_id = :task_id
-            ORDER BY tm.created_at ASC
-        ");
+        ";
+
+        if ($limit !== null && $limit > 0) {
+            $sql .= " ORDER BY tm.created_at DESC LIMIT " . (int)$limit;
+        } else {
+            $sql .= " ORDER BY tm.created_at ASC";
+        }
+
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute([':task_id' => $taskId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // If we limited to get the *latest* N, we need to reverse them to show chronologically (Ascending)
+        if ($limit !== null && $limit > 0) {
+            $rows = array_reverse($rows);
+        }
 
         $messages = [];
         foreach ($rows as $row) {

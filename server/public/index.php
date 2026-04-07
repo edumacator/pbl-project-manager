@@ -35,6 +35,7 @@ use App\Services\ClassService;
 use App\Services\AnalyticsService;
 use App\Services\ProjectQnaService;
 use App\Services\CalendarService;
+use App\Domain\TaskMessage;
 
 // Load Env
 Env::load(__DIR__ . '/../.env');
@@ -714,7 +715,45 @@ if (preg_match('#^/api/v1/projects/(\d+)/tasks$#', $uri, $matches)) {
     }
 }
 
-// Update Task
+// Hard Delete Task (Dedicated Route)
+if (preg_match('#^/api/v1/tasks/(\d+)/hard$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    $taskId = (int) $matches[1];
+    try {
+        $taskToHardDelete = $taskService->getTask($taskId);
+        if (!$taskToHardDelete) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Task not found']]);
+            exit;
+        }
+
+        $isTeacher = $currentUser && in_array($currentUser->role, ['teacher', 'admin']);
+        $isSubtask = $taskToHardDelete->parentId !== null;
+        $isOwner = $taskToHardDelete->assigneeId === $currentUser->id;
+
+        // Teachers can hard delete anything. Students can only hard delete subtasks they own.
+        // Also allow if it's a subtask and the student belongs to the same project (broader permission).
+        if (!$isTeacher && !($isSubtask && ($isOwner || $taskToHardDelete->assigneeId === null))) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Only teachers can hard delete top-level tasks. Students can only delete subtasks they own or unassigned subtasks.']]);
+            exit;
+        }
+
+        $success = $taskService->hardDeleteTask($taskId);
+        echo json_encode(['ok' => $success, 'data' => ['deleted' => $success]]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+// Update/Get/Delete Task (Soft/Normal)
 if (preg_match('#^/api/v1/tasks/(\d+)$#', $uri, $matches)) {
     $taskId = (int) $matches[1];
 
@@ -749,22 +788,6 @@ if (preg_match('#^/api/v1/tasks/(\d+)$#', $uri, $matches)) {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-        if (str_ends_with($uri, '/hard')) {
-            if (!$currentUser || !in_array($currentUser->role, ['teacher', 'admin'])) {
-                http_response_code(403);
-                echo json_encode(['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Only teachers and admins can hard delete tasks']]);
-                exit;
-            }
-            try {
-                $success = $taskService->hardDeleteTask($taskId);
-                echo json_encode(['ok' => $success, 'data' => ['deleted' => $success]]);
-            } catch (\Exception $e) {
-                http_response_code(500);
-                echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
-            }
-            exit;
-        }
-
         try {
             $success = $taskService->deleteTask($taskId);
             if ($success) {
@@ -800,33 +823,64 @@ if (preg_match('#^/api/v1/tasks/(\d+)/restore$#', $uri, $matches) && $_SERVER['R
 }
 
 // Stuck Tasks Logging & Toggling
-if (preg_match('#^/api/v1/tasks/(\d+)/stuck-log$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if (preg_match('#^/api/v1/tasks/(\d+)/stuck-log$#', $uri, $matches)) {
     $taskId = (int) $matches[1];
-    $input = json_decode(file_get_contents('php://input'), true);
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
 
-    if (!$currentUser) {
-        http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        if (!$currentUser) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+            exit;
+        }
+
+        $reason = $input['reason'] ?? '';
+        $actionTaken = $input['action_taken'] ?? '';
+        $nextActionText = $input['next_action_text'] ?? '';
+
+        try {
+            $stuckService = new \App\Services\StuckTaskService();
+            $logId = $stuckService->logStuckAction($taskId, $currentUser->id, $reason, $actionTaken, $nextActionText);
+
+            $shouldUnstick = (bool)($input['should_unstick'] ?? true);
+            if ($shouldUnstick) {
+                // Update task status to "doing" and unstuck
+                $taskService->updateTask($taskId, ['status' => 'doing', 'is_stuck' => false], $currentUser->id);
+            }
+
+            // Cross-post to task_messages if it's a "Ping" so the AlertOverlay picks it up
+            if (stripos($actionTaken, 'Ping') !== false) {
+                $visibility = (stripos($actionTaken, 'Teacher') !== false) ? 'teacher' : 'team';
+                $message = new TaskMessage(
+                    $taskId,
+                    $currentUser->id,
+                    $nextActionText,
+                    $visibility,
+                    true // is_system: Mark as automated alert for notification routing
+                );
+                $taskMessageRepo->create($message);
+            }
+
+            echo json_encode(['ok' => true, 'data' => ['log_id' => $logId]]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
         exit;
     }
 
-    $reason = $input['reason'] ?? '';
-    $actionTaken = $input['action_taken'] ?? '';
-    $nextActionText = $input['next_action_text'] ?? '';
-
-    try {
-        $stuckService = new \App\Services\StuckTaskService();
-        $logId = $stuckService->logStuckAction($taskId, $currentUser->id, $reason, $actionTaken, $nextActionText);
-
-        // Also update task status to "doing" and unstuck as per Action Tree final step
-        $taskService->updateTask($taskId, ['status' => 'doing', 'is_stuck' => false], $currentUser->id);
-
-        echo json_encode(['ok' => true, 'data' => ['log_id' => $logId]]);
-    } catch (\Exception $e) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        try {
+            $stuckService = new \App\Services\StuckTaskService();
+            $logs = $stuckService->getLogsForTask($taskId);
+            echo json_encode(['ok' => true, 'data' => $logs]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+        }
+        exit;
     }
-    exit;
 }
 
 if (preg_match('#^/api/v1/tasks/(\d+)/toggle-stuck$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -871,7 +925,8 @@ if (preg_match('#^/api/v1/tasks/(\d+)/messages$#', $uri, $matches)) {
                 exit;
             }
 
-            $allMessages = $taskMessageRepo->findByTaskId($taskId);
+            $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : null;
+            $allMessages = $taskMessageRepo->findByTaskId($taskId, $limit);
 
             // Filter visibility
             $filteredMessages = [];
@@ -928,6 +983,78 @@ if (preg_match('#^/api/v1/tasks/(\d+)/messages$#', $uri, $matches)) {
     }
 }
 
+// Notifications
+if ($uri === '/api/v1/notifications/unread-stuck' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    try {
+        $db = \App\Repositories\MySQL\Database::getConnection();
+        
+        $sql = "SELECT tm.*, t.title as task_title, t.project_id as project_id, p.title as project_title, u.name as user_name
+                FROM task_messages tm
+                JOIN tasks t ON tm.task_id = t.id
+                JOIN projects p ON t.project_id = p.id
+                JOIN users u ON tm.user_id = u.id
+                LEFT JOIN notification_dismissals nd ON tm.id = nd.message_id AND nd.user_id = ?
+                WHERE nd.id IS NULL AND tm.user_id != ?";
+
+        if (in_array($currentUser->role, ['teacher', 'admin'])) {
+            // Teachers see all relevant pings for projects they own OR manage as a class teacher
+            $sql .= " AND (
+                p.author_id = ? 
+                OR p.id IN (
+                    SELECT pc.project_id 
+                    FROM project_classes pc 
+                    JOIN classes c ON pc.class_id = c.id 
+                    WHERE c.staff_id = ?
+                )
+            )";
+            $stmt = $db->prepare($sql);
+            // Params: [nd.user_id, tm.user_id !=, p.author_id, c.staff_id]
+            $stmt->execute([$currentUser->id, $currentUser->id, $currentUser->id, $currentUser->id]);
+        } else {
+            // Students only see 'team' pings for their own teams
+            $sql .= " AND tm.visibility = 'team' 
+                     AND (t.team_id IN (SELECT team_member.team_id FROM team_members team_member WHERE team_member.user_id = ?) 
+                          OR t.project_id IN (SELECT team.project_id FROM teams team JOIN team_members tm2 ON team.id = tm2.team_id WHERE tm2.user_id = ?))";
+            $stmt = $db->prepare($sql);
+            // Params: [nd.user_id, tm.user_id !=, team_id selection, project_id selection]
+            $stmt->execute([$currentUser->id, $currentUser->id, $currentUser->id, $currentUser->id]);
+        }
+
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['ok' => true, 'data' => $results]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+if (preg_match('#^/api/v1/notifications/(\d+)/dismiss$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $messageId = (int)$matches[1];
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    try {
+        $db = \App\Repositories\MySQL\Database::getConnection();
+        $stmt = $db->prepare("INSERT IGNORE INTO notification_dismissals (user_id, message_id) VALUES (?, ?)");
+        $stmt->execute([$currentUser->id, $messageId]);
+        echo json_encode(['ok' => true]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
 // Task Checklist
 if (preg_match('#^/api/v1/tasks/(\d+)/checklist$#', $uri, $matches)) {
     $taskId = (int) $matches[1];
@@ -949,7 +1076,8 @@ if (preg_match('#^/api/v1/tasks/(\d+)/checklist$#', $uri, $matches)) {
             exit;
         }
         try {
-            $item = $taskService->addChecklistItem($taskId, $input['content'] ?? '', $currentUser->id);
+            $isStuckResolver = (bool)($input['is_stuck_resolver'] ?? false);
+            $item = $taskService->addChecklistItem($taskId, $input['content'] ?? '', $currentUser->id, $isStuckResolver);
             echo json_encode(['ok' => true, 'data' => $item]);
         } catch (\Exception $e) {
             http_response_code(500);
