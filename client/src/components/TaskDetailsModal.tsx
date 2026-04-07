@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Task, Project, TaskReflection, ProjectResource, TaskMessage } from '../types';
-import { X, CheckCircle2, Clock, AlertCircle, Plus, ExternalLink, Link as LinkIcon, Link2, FileText, Pencil, AlertTriangle, MessageSquare, Send, Lock, CheckSquare, Square, Trash2, ListChecks, Download, Archive } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Task, Project, TaskReflection, ProjectResource, TaskMessage, TaskChecklistItem } from '../types';
+import { X, CheckCircle2, Clock as ClockIcon, AlertCircle, Plus, ExternalLink, Link as LinkIcon, FileText, Pencil, AlertTriangle, Send, CheckSquare, Square, Trash2, ListChecks, Download, Archive, ArrowRight, ArrowLeft } from 'lucide-react';
 import { api, API_BASE } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import StuckTaskModal from './StuckTaskModal';
 import { SubtaskList } from './SubtaskList';
 
 interface TaskDetailsModalProps {
@@ -17,11 +17,16 @@ interface TaskDetailsModalProps {
     onTaskUpdate?: (updatedTask: Task) => void;
 }
 
-type TabType = 'overview' | 'reflections' | 'resources' | 'messages';
+type TabType = 'overview' | 'reflections' | 'stuck-history' | 'resources' | 'messages';
 
 export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onClose, task, project, onEditTask, onTaskClaim, onTaskUpdate }) => {
-    const [activeTab, setActiveTab] = useState<TabType>('overview');
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const initialTabFromUrl = queryParams.get('tab') as TabType;
+    
+    const [activeTab, setActiveTab] = useState<TabType>(initialTabFromUrl || 'overview');
     const [reflections, setReflections] = useState<TaskReflection[]>([]);
+    const [stuckLogs, setStuckLogs] = useState<any[]>([]);
     const [resources, setResources] = useState<ProjectResource[]>([]);
     const [messages, setMessages] = useState<TaskMessage[]>([]);
     const [newReflection, setNewReflection] = useState('');
@@ -36,43 +41,67 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const { addToast } = useToast();
     const { user } = useAuth();
     const [isStuck, setIsStuck] = useState(task?.is_stuck || false);
-    const [showStuckModal, setShowStuckModal] = useState(false);
     const [checklist, setChecklist] = useState<any[]>([]);
     const [newChecklistItem, setNewChecklistItem] = useState('');
-    const [showChecklist, setShowChecklist] = useState(false);
+    const [history, setHistory] = useState<Task[]>([]);
+    const [navDirection, setNavDirection] = useState<'forward' | 'backward' | null>(null);
+    
+    // Stuck Protocol Integration State
+    const [stuckStep, setStuckStep] = useState<1 | 2 | 3>(1);
+    const [stuckReason, setStuckReason] = useState<string>("");
+    const [stuckActionId, setStuckActionId] = useState<string>("");
+    const [stuckNextActionText, setStuckNextActionText] = useState("");
+    const [showStuckResolverBanner, setShowStuckResolverBanner] = useState(false);
+    const [stuckPanelCollapsed, setStuckPanelCollapsed] = useState(false);
+    const [stuckSteps, setStuckSteps] = useState<string[]>(['', '', '']);
+    const [stuckResolutionType, setStuckResolutionType] = useState<'checklist' | 'subtask'>('checklist');
+    const [showAllMessages, setShowAllMessages] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    useEffect(() => {
+        if (activeTab === 'messages') {
+            scrollToBottom();
+        }
+    }, [messages, activeTab]);
     
     const cleanUrl = (input: string) => {
-        // Strip out any redundant protocols
         return input.replace(/^(https?:\/\/)+/g, '').trim();
     };
     const [localPriority, setLocalPriority] = useState<'P1' | 'P2' | 'P3'>(task?.priority || 'P3');
 
     useEffect(() => {
-        setIsStuck(task?.is_stuck || false);
-        setLocalPriority(task?.priority || 'P3');
-    }, [task]);
+        if (localTask?.id === task?.id) {
+            setIsStuck(task?.is_stuck || false);
+            setLocalPriority(task?.priority || 'P3');
+        }
+    }, [task, localTask?.id]);
 
     const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
     const isOwner = task?.assignee_id === user?.id;
     const canEdit = isTeacher || isOwner;
 
     const fetchData = async () => {
-        if (!task) return;
+        if (!localTask) return;
         setLoading(true);
         try {
-            const [taskRes, refRes, resRes, msgRes, checkRes] = await Promise.all([
-                api.get<Task>(`/tasks/${task.id}`),
-                api.get<TaskReflection[]>(`/tasks/${task.id}/reflections`).catch(() => []),
-                api.get<ProjectResource[]>(`/tasks/${task.id}/resources`).catch(() => []),
-                api.get<TaskMessage[]>(`/tasks/${task.id}/messages`).catch(() => []),
-                api.get<any[]>(`/tasks/${task.id}/checklist`).catch(() => [])
+            const [taskRes, refRes, stuckRes, resRes, msgRes, checkRes] = await Promise.all([
+                api.get<Task>(`/tasks/${localTask.id}`),
+                api.get<TaskReflection[]>(`/tasks/${localTask.id}/reflections`).catch(() => []),
+                api.getStuckLogs(localTask.id).catch(() => []),
+                api.get<ProjectResource[]>(`/tasks/${localTask.id}/resources`).catch(() => []),
+                api.get<TaskMessage[]>(`/tasks/${localTask.id}/messages${showAllMessages ? '' : '?limit=15'}`).catch(() => []),
+                api.get<any[]>(`/tasks/${localTask.id}/checklist`).catch(() => [])
             ]);
             if (taskRes) setLocalTask(taskRes);
             setReflections(refRes || []);
+            setStuckLogs(stuckRes || []);
             setResources(resRes || []);
             setMessages(msgRes || []);
             setChecklist(checkRes || []);
-            setShowChecklist((checkRes || []).length > 0);
         } catch (error) {
             console.error(error);
         } finally {
@@ -81,12 +110,72 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     };
 
     useEffect(() => {
-        if (isOpen && task) {
+        if (isOpen && task && (!localTask || task.id !== localTask.id) && history.length === 0) {
             setLocalTask(task);
+            setHistory([]);
+            setNavDirection(null);
+            // Deep link support: auto-focus the messages tab if requested in URL
+            setActiveTab(initialTabFromUrl || 'overview');
+        }
+    }, [isOpen, task?.id, initialTabFromUrl]);
+
+    // Ensure the tab switches even if the modal was already open for this task
+    useEffect(() => {
+        if (isOpen && initialTabFromUrl) {
+            setActiveTab(initialTabFromUrl);
+        }
+    }, [isOpen, initialTabFromUrl]);
+
+    // Re-fetch data whenever the Discussion tab is focused to ensure live updates
+    useEffect(() => {
+        if (isOpen && activeTab === 'messages' && localTask?.id) {
             fetchData();
+        }
+    }, [isOpen, activeTab, localTask?.id]);
+
+    useEffect(() => {
+        if (isOpen && localTask?.id) {
+            fetchData();
+        }
+    }, [isOpen, localTask?.id]);
+
+    const handleFetchAllMessages = () => {
+        setShowAllMessages(true);
+    };
+
+    useEffect(() => {
+        if (showAllMessages && isOpen && localTask?.id) {
+            fetchData();
+        }
+    }, [showAllMessages]);
+
+    const handleSubtaskClick = (subtask: Task) => {
+        if (localTask) {
+            setNavDirection('forward');
+            setHistory([...history, localTask]);
+            setLocalTask(subtask);
             setActiveTab('overview');
         }
-    }, [isOpen, task?.id]);
+    };
+
+    const handleBack = () => {
+        if (history.length > 0) {
+            setNavDirection('backward');
+            const newHistory = [...history];
+            const parent = newHistory.pop();
+            setHistory(newHistory);
+            if (parent) {
+                setLocalTask(parent);
+                setActiveTab('overview');
+            }
+        }
+    };
+
+    const handleClose = () => {
+        setHistory([]);
+        setNavDirection(null);
+        onClose();
+    };
 
     const handleToggleStuck = async () => {
         if (!task) return;
@@ -98,24 +187,223 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
             
             if (onTaskUpdate && res.task) onTaskUpdate(res.task);
 
-            // Trigger the stuck decision tree if marked as stuck
             if (newStuckState) {
-                setShowStuckModal(true);
+                setStuckStep(1);
+                setStuckReason("");
+                setStuckActionId("");
+                setStuckNextActionText("");
+                setStuckPanelCollapsed(false);
+                setStuckSteps(['', '', '']);
+                setStuckResolutionType('checklist');
             }
         } catch (err) {
             console.error("Failed to toggle stuck state", err);
-            setIsStuck(!newStuckState); // Revert
+            setIsStuck(!newStuckState);
             addToast("Failed to update task state.", "error");
         }
     };
 
-    const handleStuckResolved = () => {
-        setShowStuckModal(false);
-        setIsStuck(false); // Task is now unstuck!
-        fetchData();
-        // You could also invoke a parent callback to refresh kanban board if needed 
-        // using onTaskClaim or similar to push reload to parent, but we'll stick to this for now.
+    const ACTION_TREE = {
+        "1": {
+            title: "I don't know what to do next",
+            description: "It’s normal to feel stuck when a task feels too big or unclear. Breaking it down into the smallest possible 'micro-step' bypasses the part of our brain that feels overwhelmed, making it easier to just start.",
+            options: [
+                { id: "A", text: "Write the smallest possible next step (1 sentence)" },
+                { id: "B", text: "Break this task into 3 smaller steps" },
+                { id: "C", text: "Ping Team: \"What's the next move on this?\"" },
+                { id: "D", text: "Ping Teacher: \"I'm unsure what the first step should be.\"" }
+            ]
+        },
+        "2": {
+            title: "I don't understand something",
+            description: "Sometimes our brains need a different 'entry point.' Asking for a specific clarification or looking for a visual example can help translate instructions into action.",
+            options: [
+                { id: "A", text: "The instructions - Rewrite in own words & find confusing part" },
+                { id: "B", text: "The content - Open notes/resource and write 1 question" },
+                { id: "C", text: "I'm not sure if it's correct - Check against task requirements or examples" },
+                { id: "D", text: "Ping Team: \"Can someone explain ___?\"" },
+                { id: "E", text: "Ping Teacher: \"I'm confused about ___.\"" }
+            ]
+        },
+        "3": {
+            title: "I'm waiting on someone or something",
+            description: "External blocks can be frustrating. Identifying what you *can* control in the meantime keeps your momentum going while you wait for others.",
+            options: [
+                { id: "A", text: "Switch to a different task you can control" },
+                { id: "B", text: "Prepare the next step now" },
+                { id: "C", text: "Draft a placeholder version" },
+                { id: "D", text: "Ping Team: \"Are you finished with ___?\"" },
+                { id: "E", text: "Ping Teacher: \"We're blocked waiting on ___.\"" }
+            ]
+        },
+        "4": {
+            title: "I got distracted / avoided it",
+            description: "Distraction is often a sign of 'friction' or hidden stress. A quick 5-minute 'Focus Sprint' can help reset your brain and lower the barrier to getting back on track.",
+            options: [
+                { id: "A", text: "5-Minute Restart - Write 1 sentence, start timer" },
+                { id: "B", text: "10-Minute Focus Sprint - Choose 1 micro-step" },
+                { id: "C", text: "Make an If-Then Plan" },
+                { id: "D", text: "Move one task to Done (if partially complete)" },
+                { id: "E", text: "Ping Teacher: \"I'm feeling stuck getting started.\"" }
+            ]
+        },
+        "5": {
+            title: "This task is bigger than we thought",
+            description: "Complexity is the enemy of action. When a task expands, our brain might want to avoid it. Resizing the task back to a manageable 'bite-size' restores our sense of control.",
+            options: [
+                { id: "A", text: "Cut it into 3 clear subtasks" },
+                { id: "B", text: "Reduce scope - Define a MVV (Minimum Viable Version)" },
+                { id: "C", text: "Reassign roles in team" },
+                { id: "D", text: "Ping Team: \"We need to split this differently.\"" },
+                { id: "E", text: "Ping Teacher: \"We think this needs to be resized.\"" }
+            ]
+        }
     };
+
+    const handleStuckSubmit = async () => {
+        const isThreeSteps = (stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A");
+        const hasText = isThreeSteps ? stuckSteps.every(s => s.trim()) : stuckNextActionText.trim();
+        
+        if (!hasText) return;
+        setLoading(true);
+        try {
+            const reasonText = ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].title;
+            const selectedActionText = ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text || '';
+            
+            const isPing = selectedActionText.includes('Ping');
+            const isSmallestStep = stuckReason === "1" && stuckActionId === "A";
+
+            await api.post(`/tasks/${task?.id}/stuck-log`, {
+                reason: reasonText,
+                action_taken: selectedActionText,
+                next_action_text: isThreeSteps ? stuckSteps.join(' | ') : stuckNextActionText,
+                should_unstick: !isPing
+            });
+
+            if (isSmallestStep) {
+                await api.post(`/tasks/${task?.id}/checklist`, { 
+                    content: stuckNextActionText,
+                    is_stuck_resolver: true 
+                });
+            } else if (isThreeSteps) {
+                for (const stepText of stuckSteps) {
+                    if (stuckResolutionType === 'checklist') {
+                        await api.post(`/tasks/${task?.id}/checklist`, { 
+                            content: stepText,
+                            is_stuck_resolver: true 
+                        });
+                    } else {
+                        await api.post(`/projects/${project.id}/tasks`, {
+                            title: stepText,
+                            parent_task_id: task?.id,
+                            is_stuck_resolver: true,
+                            status: 'todo',
+                            assignee_id: user?.id
+                        });
+                    }
+                }
+            }
+
+
+            const isResolverAction = isSmallestStep || isThreeSteps;
+            if (!isResolverAction && !isPing) {
+                await api.post(`/tasks/${task?.id}/toggle-stuck`, { is_stuck: false });
+                setIsStuck(false);
+                addToast("Action plan committed! Task is now active.", "success");
+            } else if (isPing) {
+                addToast("Message sent! Your team/teacher will be notified.", "success");
+                setStuckPanelCollapsed(true);
+            } else {
+                const msg = isSmallestStep ? "Micro-step added!" : `${stuckResolutionType === 'checklist' ? 'Checklist items' : 'Subtasks'} added!`;
+                addToast(`${msg} Complete just one to get unstuck.`, "warning");
+                setShowStuckResolverBanner(true);
+                setStuckPanelCollapsed(true);
+            }
+            
+            setStuckReason("");
+            setStuckActionId("");
+            setStuckNextActionText("");
+            setStuckStep(1);
+            
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to save action plan.", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleStuckActionSelect = (option: { id: string, text: string }) => {
+        setStuckActionId(option.id);
+        
+        // Auto-fill template for pings
+        if (option.text.includes('Ping')) {
+            const projectTitle = project?.title || 'this project';
+            const taskTitle = task?.title || 'this task';
+            if (option.text.includes('Teacher')) {
+                setStuckNextActionText(`Hi! I'm stuck on "${taskTitle}" for ${projectTitle}. I'm not sure what the next step is. Do you have any suggestions?`);
+            } else {
+                setStuckNextActionText(`Hey team! I'm stuck on "${taskTitle}" for ${projectTitle}. I'm not sure what the next move should be. Can anyone help clarify?`);
+            }
+        } else {
+            setStuckNextActionText("");
+        }
+        
+        setStuckStep(3);
+    };
+
+    const triggerCelebration = () => {
+        const particleCount = 100;
+        const colors = [
+            'bg-amber-400', 'bg-indigo-500', 'bg-green-400', 'bg-pink-400', 'bg-blue-400',
+            'bg-yellow-300', 'bg-purple-500', 'bg-rose-400'
+        ];
+        
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            const shapeType = Math.random();
+            const borderRadius = shapeType > 0.6 ? 'rounded-full' : (shapeType > 0.3 ? 'rounded-sm' : 'rounded-none');
+            const isStrip = shapeType < 0.2;
+            
+            particle.className = `fixed pointer-events-none z-[30000] animate-in fade-out duration-[1500ms] fill-mode-forwards ${borderRadius}`;
+            
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const size = isStrip ? (Math.random() * 15 + 8) : (Math.floor(Math.random() * 8) + 5);
+            const width = isStrip ? 3 : size;
+            const height = isStrip ? size : size;
+            
+            const startX = 40 + (Math.random() * 20); 
+            const startY = 60 + (Math.random() * 20);
+            
+            particle.style.width = `${width}px`;
+            particle.style.height = `${height}px`;
+            particle.style.left = `${startX}%`;
+            particle.style.top = `${startY}%`;
+            particle.classList.add(color);
+            
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = Math.random() * 250 + 150;
+            const destX = Math.cos(angle) * velocity;
+            const destY = Math.sin(angle) * velocity - 150;
+            const rotation = Math.random() * 720 - 360;
+            
+            particle.style.transition = 'all 1.5s cubic-bezier(0.1, 0.8, 0.3, 1)';
+            document.body.appendChild(particle);
+            
+            requestAnimationFrame(() => {
+                particle.style.transform = `translate(${destX}px, ${destY}px) rotate(${rotation}deg)`;
+                particle.style.opacity = '0';
+            });
+            
+            setTimeout(() => {
+                if (document.body.contains(particle)) {
+                    document.body.removeChild(particle);
+                }
+            }, 1600);
+        }
+    };
+
     const handleAddReflection = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newReflection.trim() || !task) return;
@@ -204,7 +492,39 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         if (!canEdit) return;
         try {
             const updated = await api.patch(`/checklist-items/${item.id}`, { is_completed: !item.is_completed });
-            setChecklist(checklist.map(i => i.id === item.id ? updated : i));
+            if (!item.is_completed && item.is_stuck_resolver) {
+                triggerCelebration();
+                addToast("Micro-step complete! Getting you back to active status.", "success");
+            }
+            setChecklist(prev => prev.map(i => i.id === item.id ? updated : i));
+            if (!item.is_completed && item.is_stuck_resolver) {
+                setIsStuck(false);
+                setShowStuckResolverBanner(false);
+                setStuckPanelCollapsed(false);
+                setChecklist(prev => prev.map(i => ({
+                    ...i,
+                    is_stuck_resolver: false,
+                    is_completed: i.id === item.id ? true : i.is_completed
+                })));
+                 
+                 setLocalTask(prev => prev ? { 
+                     ...prev, 
+                     is_stuck: false, 
+                     status: 'doing',
+                     subtasks: prev.subtasks?.map(s => ({ ...s, is_stuck_resolver: false }))
+                 } : null);
+                
+                setTimeout(() => {
+                    if (task) {
+                        fetchData();
+                        if (onTaskUpdate) {
+                            api.get<Task>(`/tasks/${task.id}`).then(updatedTask => {
+                                onTaskUpdate(updatedTask);
+                            });
+                        }
+                    }
+                }, 300);
+            }
         } catch (err) {
             console.error(err);
             addToast("Failed to update item.", "error");
@@ -226,7 +546,6 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         if (!canEdit || !task) return;
         setLoading(true);
         try {
-            // 1. Create subtask
             await api.post(`/projects/${project.id}/tasks`, {
                 project_id: project.id,
                 team_id: task.team_id,
@@ -235,20 +554,13 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                 status: item.is_completed ? 'done' : 'todo',
                 priority: 'P3'
             });
-
-            // 2. Delete checklist item
             await api.delete(`/checklist-items/${item.id}`);
-            
-            // 3. Refresh data
             setChecklist(checklist.filter(i => i.id !== item.id));
             fetchData();
-            
-            // 4. Trigger parent refresh
             if (onTaskUpdate) {
                 const updatedTask = await api.get<Task>(`/tasks/${task.id}`);
                 onTaskUpdate(updatedTask);
             }
-            
             addToast("Converted checklist item to subtask", "success");
         } catch (err) {
             console.error(err);
@@ -271,6 +583,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
             addToast("Failed to update priority.", "error");
         }
     };
+
     const handleExportTask = () => {
         if (!task) return;
         const token = localStorage.getItem('auth_token');
@@ -281,15 +594,12 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const handleArchiveTask = async () => {
         if (!task) return;
         if (!confirm("Are you sure you want to archive this task? It will be hidden from the board.")) return;
-        
         setLoading(true);
         try {
             await api.delete(`/tasks/${task.id}`);
             addToast("Task archived successfully", "success");
             onClose();
-            // Trigger refresh in parent
             if (onTaskUpdate) {
-                // We use a dummy update or clear to trigger parent refresh
                 onTaskUpdate({ ...task, deleted_at: new Date().toISOString() });
             }
         } catch (err) {
@@ -302,16 +612,14 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
 
     const handleDeleteTask = async () => {
         if (!task) return;
-        if (!confirm("CRITICAL: Are you sure you want to PERMANENTLY delete this task? This cannot be undone and will remove all associated reflections and resources.")) return;
-
+        if (!confirm("CRITICAL: Are you sure you want to PERMANENTLY delete this task? This cannot be undone.")) return;
         setLoading(true);
         try {
             await api.hardDeleteTask(task.id);
             addToast("Task permanently deleted", "success");
             onClose();
-            // Trigger refresh in parent
             if (onTaskUpdate) {
-                onTaskUpdate({ ...task, id: -1 }); // Special ID to signal removal
+                onTaskUpdate({ ...task, id: -1 });
             }
         } catch (err) {
             console.error(err);
@@ -321,575 +629,494 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         }
     };
 
-    if (!isOpen || !task) return null;
+    if (!isOpen || !task || !localTask) return null;
 
-    const StatusIcon = task.status === 'done' ? CheckCircle2 : (task.status === 'doing' ? Clock : AlertCircle);
-    const statusColor = task.status === 'done' ? 'text-green-500' : (task.status === 'doing' ? 'text-blue-500' : 'text-gray-400');
+    const StatusIcon = localTask.status === 'done' ? CheckCircle2 : (localTask.status === 'doing' ? ClockIcon : AlertCircle);
+    const statusColor = localTask.status === 'done' ? 'text-green-500' : (localTask.status === 'doing' ? 'text-blue-500' : 'text-gray-400');
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[25000]">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-                {/* Header */}
-                <div className="flex justify-between items-start p-6 border-b border-gray-100 bg-gray-50/50">
-                    <div className="flex gap-4 items-start">
-                        <div className={`p-2 rounded-lg bg-white shadow-sm border border-gray-100 ${statusColor}`}>
-                            <StatusIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900 leading-tight mb-1">{task.title}</h2>
-                            <div className="flex items-center gap-3 text-sm text-gray-500">
-                                <span className="capitalize font-medium text-gray-700">{task.status.replace('_', ' ')}</span>
-                                {task.assignee_id ? (
-                                    <span>Assignee: {task.assignee_name || `User ${task.assignee_id}`}</span>
-                                ) : (
-                                    onTaskClaim && (
-                                        <button
-                                            onClick={() => onTaskClaim(task.id)}
-                                            className="text-xs font-bold uppercase tracking-wider bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
-                                        >
-                                            Claim Task
-                                        </button>
-                                    )
-                                )}
+            <div className={`bg-white rounded-xl shadow-xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in duration-200 transition-all ${isStuck ? 'max-w-5xl' : 'max-w-3xl'}`}>
+                {isStuck && (
+                    <div className="w-full md:w-80 bg-amber-50 border-r border-amber-100 flex flex-col overflow-hidden animate-in slide-in-from-left duration-500">
+                        <div className="p-4 bg-amber-500 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5" />
+                                <h3 className="font-bold">Stuck Protocol</h3>
                             </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {canEdit && (
-                            <button
-                                onClick={() => onEditTask?.(task)}
-                                className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center"
-                            >
-                                <Pencil className="w-4 h-4 mr-1" /> Edit
+                            <button onClick={() => setStuckPanelCollapsed(!stuckPanelCollapsed)} className="p-1 hover:bg-amber-600 rounded transition-colors">
+                                {stuckPanelCollapsed ? <Plus className="w-5 h-5" /> : <X className="w-5 h-5" />}
                             </button>
-                        )}
-                        <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors ml-2 border-l border-gray-200">
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Tabs Navigation */}
-                <div className="flex border-b border-gray-200 px-6 pt-2">
-                    <button
-                        onClick={() => setActiveTab('overview')}
-                        className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'overview' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                    >
-                        Overview
-                    </button>
-                    {(project.requires_reflection || project.requires_milestone_reflection) && (
-                        <button
-                            onClick={() => setActiveTab('reflections')}
-                            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'reflections' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                        >
-                            Reflections
-                        </button>
-                    )}
-                    <button
-                        onClick={() => setActiveTab('resources')}
-                        className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'resources' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                    >
-                        Resources
-                    </button>
-                    {(task?.is_stuck || messages.length > 0) && (
-                        <button
-                            onClick={() => setActiveTab('messages')}
-                            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'messages' ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                        >
-                            Discussion {messages.length > 0 && <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full">{messages.length}</span>}
-                        </button>
-                    )}
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-                    {activeTab === 'overview' && (
-                        <div className="space-y-6">
-                            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-2 uppercase tracking-wider">Description</h3>
-                                <p className="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed">{task.description || "No description provided."}</p>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
-                                    <span className="text-sm text-gray-500">Start Date</span>
-                                    <span className="font-medium text-gray-900">{task.start_date ? task.start_date.substring(0, 10) : '-'}</span>
-                                </div>
-                                <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm transition-colors group/date">
-                                    <span className="text-sm text-gray-500">Due Date</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-medium text-gray-900">{task.due_date ? task.due_date.substring(0, 10) : '-'}</span>
-                                        {isOwner && task.due_date && (
-                                            <button 
-                                                onClick={handleExportTask}
-                                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all active:scale-90"
-                                                title="Add to Calendar (.ics)"
-                                            >
-                                                <Download size={14} />
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1">
+                            {(checklist.some(i => i.is_stuck_resolver && !i.is_completed) || localTask?.subtasks?.some(s => s.is_stuck_resolver && s.status !== 'done')) ? (
+                                <div className="space-y-4 animate-in fade-in zoom-in duration-300">
+                                    <div className={`space-y-4 ${stuckPanelCollapsed ? 'opacity-100' : 'p-2 rounded-xl bg-amber-50/30'}`}>
+                                        <div className="bg-white p-4 rounded-xl border-2 border-amber-200 shadow-sm">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Active Micro-Step(s)</h4>
+                                                <AlertTriangle className="w-3 h-3 text-amber-500 animate-pulse" />
+                                            </div>
+                                            <div className="space-y-2 mb-3">
+                                                {checklist.filter(i => i.is_stuck_resolver && !i.is_completed).map(item => (
+                                                    <p key={item.id} className="text-sm font-bold text-amber-900 leading-tight flex items-start gap-1.5">
+                                                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        {item.content.replace('NEXT: ', '')}
+                                                    </p>
+                                                ))}
+                                                {localTask?.subtasks?.filter(s => s.is_stuck_resolver && s.status !== 'done').map(sub => (
+                                                    <p key={sub.id} className="text-sm font-bold text-amber-900 leading-tight flex items-start gap-1.5">
+                                                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        {sub.title}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                            <div className="p-2 py-2.5 bg-amber-50 rounded-lg text-[10px] text-amber-700 font-medium border border-amber-100/50">
+                                                <span className="font-bold">Next step:</span> Complete { (checklist.filter(i => i.is_stuck_resolver && !i.is_completed).length + (localTask?.subtasks?.filter(s => s.is_stuck_resolver && s.status !== 'done').length || 0)) > 1 ? 'any of these items' : 'this item' } to get unstuck!
+                                            </div>
+                                        </div>
+                                        {!stuckPanelCollapsed && (
+                                            <button onClick={() => { setStuckStep(1); setShowStuckResolverBanner(false); }} className="w-full py-2 text-[10px] font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-100/50 rounded-lg border border-amber-200 border-dashed transition-all">
+                                                Switch to a different strategy
                                             </button>
                                         )}
                                     </div>
                                 </div>
-                                <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
-                                    <span className="text-sm text-gray-500">Priority</span>
-                                    {canEdit ? (
-                                        <select
-                                            value={localPriority}
-                                            onChange={(e) => handlePriorityChange(e.target.value as any)}
-                                            className={`text-sm font-bold px-2 py-1 rounded border transition-colors ${localPriority === 'P1' ? 'border-red-200 bg-red-50 text-red-700' :
-                                                localPriority === 'P2' ? 'border-orange-200 bg-orange-50 text-orange-700' :
-                                                    'border-gray-200 bg-gray-50 text-gray-700'
-                                                }`}
-                                        >
-                                            <option value="P1">P1 - Critical</option>
-                                            <option value="P2">P2 - High</option>
-                                            <option value="P3">P3 - Normal</option>
-                                        </select>
-                                    ) : (
-                                        <span className={`text-sm font-bold px-2 py-1 rounded ${localPriority === 'P1' ? 'bg-red-50 text-red-700' :
-                                            localPriority === 'P2' ? 'bg-orange-50 text-orange-700' :
-                                                'bg-gray-50 text-gray-700'
-                                            }`}>
-                                            {localPriority}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-4 justify-between flex rounded-xl border border-gray-100 shadow-sm">
-                                <span className="text-sm text-gray-500">Dependencies</span>
-                                <span className="font-medium text-gray-900">{task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length} tasks` : 'None'}</span>
-                            </div>
-
-                            {/* Checklist Section */}
-                            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                        <ListChecks className="w-4 h-4 text-indigo-500" />
-                                        Task Checklist
-                                    </h3>
-                                    {!showChecklist && canEdit && (
-                                        <button
-                                            onClick={() => setShowChecklist(true)}
-                                            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                                        >
-                                            <Plus className="w-3 h-3" /> Add Checklist
-                                        </button>
-                                    )}
-                                </div>
-
-                                {showChecklist ? (
-                                    <div className="space-y-3">
-                                        {checklist.length > 0 && (
-                                            <div className="mb-4">
-                                                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                                    <span>{checklist.filter(i => i.is_completed).length} / {checklist.length} complete</span>
-                                                    <span>{Math.round((checklist.filter(i => i.is_completed).length / checklist.length) * 100)}%</span>
+                            ) : (
+                                <>
+                                    <div className="flex items-center mb-6">
+                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full font-bold text-[10px] ${stuckStep >= 1 ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-400'}`}>1</div>
+                                        <div className={`flex-1 h-0.5 mx-1 rounded ${stuckStep >= 2 ? 'bg-amber-500' : 'bg-gray-200'}`}></div>
+                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full font-bold text-[10px] ${stuckStep >= 2 ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-400'}`}>2</div>
+                                        <div className={`flex-1 h-0.5 mx-1 rounded ${stuckStep >= 3 ? 'bg-amber-500' : 'bg-gray-200'}`}></div>
+                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full font-bold text-[10px] ${stuckStep >= 3 ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-400'}`}>3</div>
+                                    </div>
+                                    {stuckStep === 1 && (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                            {stuckLogs.length > 0 && (
+                                                <div className="p-3 bg-amber-100/50 border border-amber-200 rounded-lg animate-pulse text-[10px] text-amber-800 font-medium leading-relaxed">
+                                                    <span className="font-bold flex items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3" /> Still stuck?</span>
+                                                    You've encountered blocks on this task {stuckLogs.length} time{stuckLogs.length > 1 ? 's' : ''} before. Try a different strategy or ping your teacher if the micro-steps aren't helping.
                                                 </div>
-                                                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="bg-indigo-500 h-full transition-all duration-500"
-                                                        style={{ width: `${(checklist.filter(i => i.is_completed).length / checklist.length) * 100}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-2">
-                                            {checklist.map(item => (
-                                                <div key={item.id} className="group flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                                                    <button
-                                                        onClick={() => handleToggleChecklistItem(item)}
-                                                        disabled={!canEdit}
-                                                        className={`transition-colors ${item.is_completed ? 'text-green-500' : 'text-gray-300 group-hover:text-gray-400'} ${!canEdit ? 'cursor-default' : ''}`}
-                                                    >
-                                                        {item.is_completed ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+                                            )}
+                                            <h4 className="text-sm font-bold text-amber-900">Why are you stuck?</h4>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {Object.entries(ACTION_TREE).map(([id, node]: [string, any]) => (
+                                                    <button key={id} onClick={() => { setStuckReason(id); setStuckStep(2); }} className="text-left w-full p-2.5 rounded-lg border border-amber-200 bg-white hover:border-amber-400 hover:bg-amber-100 transition-all text-xs font-medium text-amber-900 group flex items-center justify-between">
+                                                        {node.title}
+                                                        <ArrowRight className="w-3 h-3 text-amber-400 group-hover:translate-x-1 transition-transform" />
                                                     </button>
-                                                    <span className={`flex-1 text-sm ${item.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                                                        {item.content}
-                                                    </span>
-                                                    {canEdit && (
-                                                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all">
-                                                            <button
-                                                                onClick={() => handleConvertToSubtask(item)}
-                                                                className="p-1 text-gray-400 hover:text-indigo-600 transition-all"
-                                                                title="Convert to Subtask"
-                                                            >
-                                                                <ExternalLink className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteChecklistItem(item.id)}
-                                                                className="p-1 text-gray-400 hover:text-red-500 transition-all"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {stuckStep === 2 && stuckReason && (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
+                                            <button onClick={() => setStuckStep(1)} className="text-[10px] text-amber-600 hover:underline">&larr; Change category</button>
+                                            <h4 className="text-sm font-bold text-amber-900">Choose an action:</h4>
+                                            <div className="space-y-2">
+                                                {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.map(opt => (
+                                                    <button key={opt.id} onClick={() => handleStuckActionSelect(opt)} className="text-left w-full p-2.5 rounded-lg border border-amber-200 bg-white hover:border-amber-400 hover:bg-amber-100 transition-all flex items-start group">
+                                                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px] mr-2 shrink-0 mt-0.5">{opt.id}</div>
+                                                        <span className="text-[11px] font-medium text-amber-900">{opt.text}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {stuckStep === 3 && (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-right-2 text-center">
+                                            <button onClick={() => setStuckStep(2)} className="text-[10px] text-amber-600 hover:underline">&larr; Back</button>
+                                            {((stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A")) ? (
+                                                <div className="space-y-3 text-left">
+                                                    <div className="p-3 bg-amber-100/50 rounded-lg border border-amber-200">
+                                                        <h5 className="text-[10px] font-bold text-amber-900 uppercase mb-2">Break it down:</h5>
+                                                        <div className="space-y-2">
+                                                            {stuckSteps.map((s, idx) => (
+                                                                <input key={idx} value={s} onChange={(e) => {
+                                                                    const newSteps = [...stuckSteps];
+                                                                    newSteps[idx] = e.target.value;
+                                                                    setStuckSteps(newSteps);
+                                                                }} placeholder={`Step ${idx + 1}...`} className="w-full p-2 text-xs rounded border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none" />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button onClick={() => setStuckResolutionType('checklist')} className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${stuckResolutionType === 'checklist' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-200'}`}>
+                                                            Checklist
+                                                        </button>
+                                                        <button onClick={() => setStuckResolutionType('subtask')} className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${stuckResolutionType === 'subtask' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-200'}`}>
+                                                            Subtasks
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="p-3 bg-white rounded-lg border border-amber-200 text-left">
+                                                    <label className="block text-[10px] font-bold text-amber-900 mb-1">
+                                                        {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Ping') ? 'Write your message:' : 'Write your micro-step (1 sentence):'}
+                                                    </label>
+                                                    <textarea value={stuckNextActionText} onChange={(e) => setStuckNextActionText(e.target.value)} placeholder="..." className="w-full p-2 text-xs rounded border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none resize-none" rows={3} autoFocus></textarea>
+                                                    
+                                                    {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Ping') && (
+                                                        <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 bg-amber-50 rounded border border-amber-100 italic">
+                                                            {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Teacher') ? (
+                                                                <>
+                                                                    <span className="text-[10px]">🎓</span>
+                                                                    <span className="text-[10px] font-bold text-amber-700">Private alert to your teacher</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="text-[10px]">👥</span>
+                                                                    <span className="text-[10px] font-bold text-amber-700">Alerts your team and teacher</span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
-                                            ))}
+                                            )}
+                                            <button onClick={handleStuckSubmit} disabled={loading || (((stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A")) ? !stuckSteps.every(s => s.trim()) : !stuckNextActionText.trim())} className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-200 text-white rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2">
+                                                Commit & Proceed
+                                                <ClockIcon className="w-3 h-3" />
+                                            </button>
                                         </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
 
-                                        {canEdit && (
-                                            <form onSubmit={handleAddChecklistItem} className="mt-4">
-                                                <input
-                                                    type="text"
-                                                    value={newChecklistItem}
-                                                    onChange={(e) => setNewChecklistItem(e.target.value)}
-                                                    placeholder="Add a step..."
-                                                    className="w-full text-sm p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                                />
-                                                <p className="text-[10px] text-gray-400 mt-1 italic">Press Enter to add and keep typing</p>
-                                            </form>
-                                        )}
+                <div key={localTask.id} className={`flex-1 flex flex-col overflow-hidden animate-in fade-in duration-500 ${navDirection === 'forward' ? 'slide-in-from-right-8' : navDirection === 'backward' ? 'slide-in-from-left-8' : ''}`}>
+                    <div className="flex justify-between items-start p-6 border-b border-gray-100 bg-gray-50/50">
+                        <div className="flex gap-4 items-start">
+                            <div className={`p-2 rounded-lg bg-white shadow-sm border border-gray-100 ${statusColor}`}>
+                                <StatusIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 mb-1"> 
+                                    <h2 className="text-xl font-bold text-gray-900 leading-tight">{localTask.title}</h2>
+                                    <span className="text-gray-400 text-xs">#{localTask.id}</span>
+                                    <span className="text-[10px] text-gray-300 font-mono ml-2">PID: #{localTask.project_id}</span>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm text-gray-500">
+                                    <span className="capitalize font-medium text-gray-700">{localTask.status.replace('_', ' ')}</span>
+                                    {localTask.assignee_id ? (
+                                        <span>Assignee: {localTask.assignee_name || `User ${localTask.assignee_id}`}</span>
+                                    ) : (
+                                        onTaskClaim && (
+                                            <button onClick={() => onTaskClaim(localTask.id)} className="text-xs font-bold uppercase tracking-wider bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded">Claim Task</button>
+                                        )
+                                    )}
+                                </div>
+                                {history.length > 0 && (
+                                    <div className="mt-4">
+                                        <button onClick={handleBack} className="group flex items-center gap-2 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-all text-[11px] font-bold border border-indigo-200 shadow-sm">
+                                            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+                                            Return to: {history[history.length - 1].title}
+                                        </button> 
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {canEdit && (
+                                <button onClick={() => onEditTask?.(localTask)} className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center">
+                                    <Pencil className="w-4 h-4 mr-1" /> Edit
+                                </button>
+                            )}
+                            <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors ml-2 border-l border-gray-200">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                    </div>
 
-                                        {checklist.length > 0 && checklist.every(i => i.is_completed) && task.status !== 'done' && (
-                                            <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-100 animate-in fade-in slide-in-from-top-2">
-                                                <p className="text-xs text-green-700 font-medium flex items-center gap-2">
-                                                    <CheckCircle2 className="w-4 h-4" />
-                                                    All steps complete! Ready to move this task to Done?
-                                                </p>
-                                            </div>
-                                        )}
+                    {showStuckResolverBanner && (
+                        <div className="bg-amber-500 text-white px-6 py-2 flex items-center justify-between animate-in slide-in-from-top duration-300">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                                <ClockIcon className="w-4 h-4" />
+                                <span>Now do this one thing, and then we will mark you as unstuck!</span>
+                            </div>
+                            <button onClick={() => setShowStuckResolverBanner(false)} className="hover:bg-amber-600 p-1 rounded"><X className="w-4 h-4" /></button>
+                        </div>
+                    )}
 
-                                        {checklist.length > 8 && (
-                                            <p className="text-[10px] text-amber-600 mt-2 italic">
-                                                Try keeping this to just the key steps.
+                    <div className="flex border-b border-gray-200 px-6 pt-2 items-center">
+                        <div className="flex items-center">
+                            <button onClick={() => setActiveTab('overview')} className={`px-4 py-3 text-sm font-medium border-b-2 ${activeTab === 'overview' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Overview</button>
+                            {(project.requires_reflection || project.requires_milestone_reflection) && (
+                                <button onClick={() => setActiveTab('reflections')} className={`px-4 py-3 text-sm font-medium border-b-2 ${activeTab === 'reflections' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Reflections</button>
+                            )}
+                            {stuckLogs.length > 0 && (
+                                <button onClick={() => setActiveTab('stuck-history')} className={`px-4 py-3 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'stuck-history' ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                                    Stuck History <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full">{stuckLogs.length}</span>
+                                </button>
+                            )}
+                            <button onClick={() => setActiveTab('resources')} className={`px-4 py-3 text-sm font-medium border-b-2 ${activeTab === 'resources' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Resources</button>
+                            {(task?.is_stuck || messages.length > 0) && (
+                                <button onClick={() => setActiveTab('messages')} className={`px-4 py-3 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'messages' ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                                    Discussion {messages.length > 0 && <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full">{messages.length}</span>}
+                                </button>
+                            )}
+                        </div>
+                        
+                        {isOwner && (
+                            <div className="ml-auto flex items-center pb-2">
+                                <button 
+                                    onClick={handleToggleStuck} 
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                        isStuck 
+                                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm' 
+                                        : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <AlertTriangle className={`w-3.5 h-3.5 ${isStuck ? 'text-white' : 'text-gray-400'}`} />
+                                    {isStuck ? 'STUCK' : 'Mark Stuck'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                        {activeTab === 'overview' && (
+                            <div className="space-y-6">
+                                {(checklist.some(i => i.is_stuck_resolver && !i.is_completed) || localTask?.subtasks?.some(s => s.is_stuck_resolver && s.status !== 'done')) && (
+                                    <div className="bg-amber-100 border border-amber-200 p-4 rounded-xl shadow-sm flex items-start gap-4 animate-in slide-in-from-top-4 duration-500">
+                                        <div className="bg-amber-500 p-2 rounded-lg text-white shadow-sm">
+                                            <AlertTriangle className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="text-amber-900 font-bold text-sm">Your Current Focusing Point</h4>
+                                            <p className="text-amber-800 text-xs mt-1">
+                                                To get back to full speed, focus on finishing at least one of the <b>Stuck Resolvers</b> below. 
+                                                Once you do, you'll be automatically marked as active again!
                                             </p>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-2 uppercase tracking-wider">Description</h3>
+                                    <p className="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed">{localTask.description || "No description provided."}</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
+                                        <span className="text-sm text-gray-500">Start Date</span>
+                                        <span className="font-medium text-gray-900">{localTask.start_date ? localTask.start_date.substring(0, 10) : '-'}</span>
+                                    </div>
+                                    <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
+                                        <span className="text-sm text-gray-500">Due Date</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium text-gray-900">{localTask.due_date ? localTask.due_date.substring(0, 10) : '-'}</span>
+                                            {isOwner && localTask.due_date && (
+                                                <button onClick={handleExportTask} className="p-1.5 text-gray-400 hover:text-indigo-600 transition-all"><Download size={14} /></button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-4 justify-between flex items-center rounded-xl border border-gray-100 shadow-sm">
+                                        <span className="text-sm text-gray-500">Priority</span>
+                                        {canEdit ? (
+                                            <select value={localPriority} onChange={(e) => handlePriorityChange(e.target.value as any)} className="text-sm font-bold px-2 py-1 rounded border border-gray-200 bg-gray-50">
+                                                <option value="P1">P1 - Critical</option>
+                                                <option value="P2">P2 - High</option>
+                                                <option value="P3">P3 - Normal</option>
+                                            </select>
+                                        ) : (
+                                            <span className="text-sm font-bold px-2 py-1 rounded bg-gray-50">{localPriority}</span>
                                         )}
                                     </div>
-                                ) : (
-                                    <div className="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
-                                        <p className="text-xs text-gray-500 mb-2">Helpful for breaking work into smaller pieces.</p>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><ListChecks className="w-4 h-4 text-indigo-500" /> Task Checklist</h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {checklist.map((item: TaskChecklistItem) => (
+                                            <div key={item.id} className={`group flex items-center gap-3 p-3 rounded-xl border transition-all ${item.is_stuck_resolver && !item.is_completed ? 'bg-amber-50 border-amber-200 scale-[1.01]' : 'border-transparent hover:bg-gray-50'}`}>
+                                                <button onClick={() => handleToggleChecklistItem(item)} disabled={!canEdit} className={`shrink-0 ${item.is_completed ? 'text-green-500' : 'text-gray-300'}`}>
+                                                    {item.is_completed ? <CheckSquare className="w-6 h-6" /> : <Square className="w-6 h-6" />}
+                                                </button>
+                                                <span className={`flex-1 text-sm ${item.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'} ${item.is_stuck_resolver && !item.is_completed ? 'font-bold' : ''}`}>
+                                                    {item.is_stuck_resolver && !item.is_completed && (
+                                                        <span className="inline-block bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded mr-2 uppercase font-black">Stuck Resolver</span>
+                                                    )}
+                                                    {item.content}
+                                                </span>
+                                                {canEdit && (
+                                                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                                                        <button onClick={() => handleConvertToSubtask(item)} className="p-1 text-gray-400 hover:text-indigo-600"><ExternalLink className="w-4 h-4" /></button>
+                                                        <button onClick={() => handleDeleteChecklistItem(item.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
                                         {canEdit && (
-                                            <button
-                                                onClick={() => setShowChecklist(true)}
-                                                className="text-xs font-bold uppercase tracking-wider bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg shadow-sm transition-all"
-                                            >
-                                                Start a Checklist
-                                            </button>
+                                            <form onSubmit={handleAddChecklistItem} className="mt-2">
+                                                <input type="text" value={newChecklistItem} onChange={(e) => setNewChecklistItem(e.target.value)} placeholder="Add a step..." className="w-full text-sm p-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-indigo-500" />
+                                            </form>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {history.length === 0 && (
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <SubtaskList parentTask={localTask} project={project} subtasks={localTask.subtasks || []} onTaskClick={handleSubtaskClick} onSubtaskUpdate={fetchData} canEdit={canEdit} />
+                                    </div>
+                                )}
+
+                                {(canEdit || isTeacher) && (
+                                    <div className="mt-8 pt-6 border-t border-gray-100 flex gap-3">
+                                        <button onClick={handleArchiveTask} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-lg"><Archive className="w-4 h-4" /> Archive</button>
+                                        {isTeacher && (
+                                            <button onClick={handleDeleteTask} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-100 rounded-lg"><Trash2 className="w-4 h-4" /> Delete</button>
                                         )}
                                     </div>
                                 )}
                             </div>
+                        )}
 
-                            {/* Subtasks Section */}
-                            {!task.parent_task_id && localTask && (
+                        {activeTab === 'reflections' && (
+                            <div className="space-y-6">
                                 <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                    <SubtaskList 
-                                        parentTask={localTask}
-                                        project={project}
-                                        subtasks={localTask.subtasks || []}
-                                        onSubtaskUpdate={() => {
-                                            fetchData();
-                                            // Trigger parent refresh to update progress on Kanban
-                                            if (onTaskUpdate) {
-                                                api.get<Task>(`/tasks/${task.id}`).then(updatedTask => {
-                                                    onTaskUpdate(updatedTask);
-                                                });
-                                            }
-                                        }}
-                                        canEdit={canEdit}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Stuck State Toggle */}
-                            {isOwner && (
-                                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between mt-6">
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-gray-900 flex items-center">
-                                            <AlertTriangle className={`w-4 h-4 mr-2 ${isStuck ? 'text-amber-500' : 'text-gray-400'}`} />
-                                            Task Status Blocked?
-                                        </h3>
-                                        <p className="text-xs text-gray-500 mt-1">If you're unsure how to proceed, mark this task as stuck.</p>
-                                    </div>
-                                    <button
-                                        onClick={handleToggleStuck}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isStuck
-                                            ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-transparent'
-                                            }`}
-                                    >
-                                        {isStuck ? 'Unmark as Stuck' : 'Mark as Stuck'}
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Danger Zone / Actions */}
-                            {(canEdit || isTeacher) && (
-                                <div className="mt-8 pt-6 border-t border-gray-100">
-                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Task Actions</h3>
-                                    <div className="flex flex-wrap gap-3">
-                                        <button
-                                            onClick={handleArchiveTask}
-                                            disabled={loading}
-                                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-100 hover:bg-amber-100 rounded-lg transition-colors"
-                                        >
-                                            <Archive className="w-4 h-4" />
-                                            Archive Task
-                                        </button>
-
-                                        {isTeacher && (
-                                            <button
-                                                onClick={handleDeleteTask}
-                                                disabled={loading}
-                                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-100 hover:bg-red-100 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                                Delete Permanently
-                                            </button>
-                                        )}
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-3 italic">
-                                        {isTeacher ? "Archived tasks can be restored by teachers. Permanently deleted tasks are gone forever." : "Archiving hides the task from the board. Contact your teacher if you need to restore it."}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'reflections' && (
-                        <div className="space-y-6">
-                            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Reflection Log</h3>
-                                {loading ? (
-                                    <div className="text-gray-400 text-sm py-4">Loading reflections...</div>
-                                ) : reflections.length === 0 ? (
-                                    <div className="text-gray-400 text-sm py-4 italic">No reflections recorded yet.</div>
-                                ) : (
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Reflection Log</h3>
                                     <div className="space-y-4">
                                         {reflections.map(ref => (
                                             <div key={ref.id} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${ref.transition_type === 'start_work' ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'}`}>
-                                                        {ref.transition_type === 'start_work' ? 'Starting Work' : 'Task Finished'}
-                                                    </span>
+                                                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">{ref.transition_type?.replace('_', ' ')}</span>
                                                     <span className="text-xs text-gray-400">{ref.created_at ? new Date(ref.created_at).toLocaleString() : ''}</span>
                                                 </div>
                                                 <p className="text-gray-600 text-sm whitespace-pre-wrap">{ref.content}</p>
                                             </div>
                                         ))}
                                     </div>
-                                )}
-                            </div>
-
-                            <form onSubmit={handleAddReflection} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                <h4 className="text-sm font-medium text-gray-900 mb-3">Add New Entry</h4>
-                                <textarea
-                                    value={newReflection}
-                                    onChange={(e) => setNewReflection(e.target.value)}
-                                    placeholder="What did you accomplish? What challenges did you face?"
-                                    className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 min-h-[100px] resize-y mb-3"
-                                    required
-                                />
-                                <div className="flex justify-end">
-                                    <button
-                                        type="submit"
-                                        disabled={!newReflection.trim() || loading}
-                                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center"
-                                    >
-                                        <Plus className="w-4 h-4 mr-1" /> Add Entry
-                                    </button>
                                 </div>
-                            </form>
-                        </div>
-                    )}
+                                <form onSubmit={handleAddReflection} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                    <textarea value={newReflection} onChange={(e) => setNewReflection(e.target.value)} placeholder="Add a reflection..." className="w-full text-sm p-3 border border-gray-200 rounded-lg min-h-[100px] mb-3 focus:outline-none focus:border-indigo-500"></textarea>
+                                    <div className="flex justify-end">
+                                        <button type="submit" disabled={!newReflection.trim()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 shadow-sm transition-all">Add Entry</button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
 
-                    {activeTab === 'resources' && (
-                        <div className="space-y-6">
-                            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Attached Resources</h3>
-                                {loading ? (
-                                    <div className="text-gray-400 text-sm py-4">Loading resources...</div>
-                                ) : resources.length === 0 ? (
-                                    <div className="text-gray-400 text-sm py-4 italic">No resources attached yet.</div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {resources.map(res => (
-                                            <div key={res.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-indigo-100 hover:bg-indigo-50/30 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-indigo-100 text-indigo-600 rounded">
-                                                        {res.type === 'file' ? <FileText className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+                        {activeTab === 'stuck-history' && (
+                            <div className="space-y-6">
+                                {stuckLogs.length > 0 && (
+                                    <div className="bg-white p-5 rounded-xl border border-amber-100 shadow-sm">
+                                        <h3 className="text-sm font-semibold text-amber-900 mb-4 flex items-center gap-2">
+                                            <AlertTriangle className="w-4 h-4 text-amber-500" /> Stuck Response History
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {stuckLogs.map(log => (
+                                                <div key={log.id} className="p-4 bg-amber-50 rounded-lg border border-amber-100 relative group overflow-hidden">
+                                                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                        <AlertTriangle className="w-12 h-12 -mr-4 -mt-4 rotate-12" />
                                                     </div>
-                                                    <div>
-                                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="font-medium text-sm text-gray-900 hover:text-indigo-600">
-                                                            {res.title}
-                                                        </a>
-                                                        <div className="text-xs text-gray-400">{res.type.toUpperCase()} • Added {res.created_at ? new Date(res.created_at).toLocaleDateString() : 'recently'}</div>
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest bg-amber-200/50 px-2 py-0.5 rounded">Action Strategy</span>
+                                                        <span className="text-xs text-amber-600 font-medium">{log.created_at ? new Date(log.created_at).toLocaleDateString() : ''} by {log.user_name}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="text-[9px] font-bold text-amber-500 uppercase tracking-wider block mb-1">Obstacle</label>
+                                                            <p className="text-amber-900 text-xs font-semibold leading-tight">{log.reason}</p>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-bold text-amber-500 uppercase tracking-wider block mb-1">Commitment</label>
+                                                            <p className="text-amber-900 text-xs font-semibold leading-tight">{log.action_taken}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-3 pt-3 border-t border-amber-200/50">
+                                                        <label className="text-[9px] font-bold text-amber-500 uppercase tracking-wider block mb-1">Planned Step</label>
+                                                        <p className="text-amber-800 text-sm whitespace-pre-wrap italic">"{log.next_action_text}"</p>
                                                     </div>
                                                 </div>
-                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-indigo-600 bg-white rounded shadow-sm border border-gray-100">
-                                                    <ExternalLink className="w-4 h-4" />
-                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'resources' && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Resources</h3>
+                                    <div className="space-y-3">
+                                        {resources.map(res => (
+                                            <div key={res.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                <div className="flex items-center gap-3">
+                                                    {res.type === 'file' ? <FileText className="w-4 h-4 text-indigo-500" /> : <LinkIcon className="w-4 h-4 text-indigo-500" />}
+                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:text-indigo-600 transition-colors">{res.title}</a>
+                                                </div>
+                                                <ExternalLink className="w-4 h-4 text-gray-400" />
                                             </div>
                                         ))}
                                     </div>
-                                )}
-                            </div>
-
-                            <form onSubmit={handleAddResource} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm mt-4">
-                                <h4 className="text-sm font-medium text-gray-900 mb-4">Attach Resource</h4>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
-                                            <button
-                                                type="button"
-                                                onClick={() => setNewResourceType('file')}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md transition-all ${newResourceType === 'file' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                            >
-                                                <FileText className="w-4 h-4" />
-                                                Document
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setNewResourceType('link')}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md transition-all ${newResourceType === 'link' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                            >
-                                                <Link2 className="w-4 h-4" />
-                                                Link
-                                            </button>
-                                        </div>
-
-                                        {newResourceType === 'link' ? (
-                                            <div className="flex bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
-                                                <span className="inline-flex items-center px-3 border-r border-gray-200 bg-gray-100/50 text-gray-500 text-sm">
-                                                    https://
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    value={newResourceUrl}
-                                                    onChange={(e) => setNewResourceUrl(cleanUrl(e.target.value))}
-                                                    placeholder="example.com/research"
-                                                    className="flex-1 text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none"
-                                                    required
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
-                                                <input
-                                                    type="file"
-                                                    onChange={(e) => setFile(e.target.files?.[0] || null)}
-                                                    className="w-full text-sm p-3 bg-transparent border-0 focus:ring-0 focus:outline-none text-gray-700"
-                                                    required
-                                                />
-                                            </div>
-                                        )}
+                                </div>
+                                <form onSubmit={handleAddResource} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                    <div className="flex gap-2 mb-4">
+                                        <button type="button" onClick={() => setNewResourceType('file')} className={`flex-1 py-2 text-xs font-bold rounded ${newResourceType === 'file' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>File</button>
+                                        <button type="button" onClick={() => setNewResourceType('link')} className={`flex-1 py-2 text-xs font-bold rounded ${newResourceType === 'link' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Link</button>
                                     </div>
-
-                                    {(newResourceUrl.length > 0 || (newResourceType === 'file' && file)) && (
-                                        <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
-                                            <label className="block text-xs font-medium text-gray-500 ml-1">Title (Optional)</label>
-                                            <input
-                                                type="text"
-                                                value={newResourceTitle}
-                                                onChange={(e) => setNewResourceTitle(e.target.value)}
-                                                placeholder="e.g. Reference Document"
-                                                className="w-full text-sm p-3 border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                                            />
-                                        </div>
+                                    <input type="text" value={newResourceTitle} onChange={(e) => setNewResourceTitle(e.target.value)} placeholder="Title" className="w-full text-sm p-2 border border-gray-200 rounded mb-2 outline-none focus:border-indigo-500" />
+                                    {newResourceType === 'link' ? (
+                                        <input type="text" value={newResourceUrl} onChange={(e) => setNewResourceUrl(e.target.value)} placeholder="URL" className="w-full text-sm p-2 border border-gray-200 rounded mb-3 outline-none focus:border-indigo-500" />
+                                    ) : (
+                                        <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm mb-3" />
                                     )}
-
-                                    <div className="pt-2">
-                                        <button
-                                            type="submit"
-                                            disabled={(newResourceType === 'link' && !newResourceUrl.trim()) || (newResourceType === 'file' && !file) || loading}
-                                            className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
-                                        >
-                                            Attach Resource
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {activeTab === 'messages' && (
-                        <div className="h-full flex flex-col bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
-                            {/* Messages List Area */}
-                            <div className="flex-1 overflow-y-auto p-5 space-y-4 max-h-[400px]">
-                                {messages.length === 0 ? (
-                                    <div className="text-center text-gray-500 py-10 flex flex-col items-center">
-                                        <MessageSquare className="w-10 h-10 text-gray-300 mb-2" />
-                                        <p className="text-sm font-medium">No messages yet.</p>
-                                        <p className="text-xs text-gray-400">Start the discussion below.</p>
-                                    </div>
-                                ) : (
-                                    messages.map((msg, idx) => {
-                                        const isCurrentUser = msg.user_id === user?.id;
-                                        return (
-                                            <div key={msg.id || idx} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                                                <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isCurrentUser ? 'bg-indigo-600 text-white rounded-br-none shadow-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-bl-none shadow-sm'}`}>
-                                                    {msg.visibility === 'teacher' && (
-                                                        <div className={`flex items-center gap-1 text-[10px] uppercase font-bold mb-1 ${isCurrentUser ? 'text-indigo-200' : 'text-amber-600'}`}>
-                                                            <Lock className="w-3 h-3" /> Private (Teacher & Assignee)
-                                                        </div>
-                                                    )}
-                                                    {!isCurrentUser && (
-                                                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{msg.user_name}</div>
-                                                    )}
-                                                    <div className="text-sm whitespace-pre-wrap">{msg.message}</div>
-                                                    <div className={`text-[10px] mt-2 text-right ${isCurrentUser ? 'text-indigo-200' : 'text-gray-400'}`}>
-                                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-
-                            {/* Message Input Area */}
-                            <div className="p-4 bg-white border-t border-gray-100">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setMessageVisibility('team')}
-                                        className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${messageVisibility === 'team' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                                    >
-                                        Team Pings
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setMessageVisibility('teacher')}
-                                        className={`text-xs px-3 py-1.5 rounded-full font-medium flex items-center gap-1 transition-colors ${messageVisibility === 'teacher' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                                    >
-                                        <Lock className="w-3 h-3" /> Teacher Only
-                                    </button>
-                                </div>
-                                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                                    <div className="flex-1 relative">
-                                        <input
-                                            type="text"
-                                            value={newMessage}
-                                            onChange={(e) => setNewMessage(e.target.value)}
-                                            placeholder={messageVisibility === 'team' ? "Message the team..." : "Private message to teacher..."}
-                                            disabled={loading}
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-full px-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 transition-colors py-2.5"
-                                        />
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={!newMessage.trim() || loading}
-                                        className="p-2.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                                    >
-                                        <Send className="w-4 h-4" />
-                                    </button>
+                                    <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors">Attach Resource</button>
                                 </form>
                             </div>
-                        </div>
-                    )}
+                        )}
+
+                                {activeTab === 'messages' && (
+                            <div className="h-full flex flex-col bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+                                <div className="flex-1 overflow-y-auto p-5 space-y-4 max-h-[500px]">
+                                    {!showAllMessages && messages.length >= 15 && (
+                                        <div className="flex justify-center pb-4">
+                                            <button 
+                                                onClick={handleFetchAllMessages}
+                                                className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-widest bg-white border border-indigo-100 px-4 py-1.5 rounded-full shadow-sm transition-all hover:shadow-md"
+                                            >
+                                                See all past messages
+                                            </button>
+                                        </div>
+                                    )}
+                                    {messages.length === 0 ? (
+                                        <div className="text-center text-gray-400 py-10"><p className="text-sm">No messages yet.</p></div>
+                                    ) : (
+                                        messages.map((msg, idx) => {
+                                            const isCurrentUser = msg.user_id === user?.id;
+                                            return (
+                                                <div key={msg.id || idx} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isCurrentUser ? 'bg-indigo-600 text-white' : 'bg-white text-gray-900 border border-gray-100'}`}>
+                                                        {msg.visibility === 'teacher' && <div className="text-[9px] uppercase font-bold text-amber-500 mb-1">Private Message</div>}
+                                                        {!isCurrentUser && <div className="text-[10px] font-bold text-gray-400 mb-1">{msg.user_name}</div>}
+                                                        <div className="text-sm">{msg.message}</div>
+                                                        <div className="text-[9px] mt-1 text-right opacity-50">{msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                                <div className="p-4 bg-white border-t border-gray-100">
+                                    <div className="flex gap-2 mb-3">
+                                        <button type="button" onClick={() => setMessageVisibility('team')} className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${messageVisibility === 'team' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>To Team</button>
+                                        <button type="button" onClick={() => setMessageVisibility('teacher')} className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${messageVisibility === 'teacher' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-500'}`}>To Teacher</button>
+                                    </div>
+                                    <form onSubmit={handleSendMessage} className="flex gap-2">
+                                        <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm outline-none focus:border-indigo-500" />
+                                        <button type="submit" disabled={!newMessage.trim()} className="bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 transition-colors"><Send className="w-4 h-4" /></button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-
-            {/* Render the action tree modal overlaid on top if active */}
-            {showStuckModal && (
-                <StuckTaskModal
-                    task={task}
-                    onClose={() => setShowStuckModal(false)}
-                    onResolved={handleStuckResolved}
-                />
-            )}
         </div>
     );
 };

@@ -4,6 +4,8 @@ import { LayoutDashboard, FolderKanban, CheckSquare, LogOut, Plus, Users, Shield
 import { api } from '../api/client';
 import { Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import AlertOverlay from './AlertOverlay';
+import DiscussionDrawer from './DiscussionDrawer';
 
 const Layout: React.FC = () => {
     const location = useLocation();
@@ -186,6 +188,8 @@ const Layout: React.FC = () => {
                     <Outlet />
                 </div>
             </main>
+            <AlertOverlay />
+            <DiscussionDrawer />
         </div>
     );
 };

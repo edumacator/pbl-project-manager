@@ -12,6 +12,7 @@ import { StudentProjectBoard } from './pages/student/ProjectBoard';
 import { ToastProvider } from './contexts/ToastContext';
 import { ToastContainer } from './components/Toast';
 import { AuthProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -26,53 +27,55 @@ function App() {
     return (
         <AuthProvider>
             <ToastProvider>
-                <BrowserRouter>
-                    <Routes>
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/signup" element={<Signup />} />
-                        <Route path="/force-password-change" element={<ForcePasswordChange />} />
+                <NotificationProvider>
+                    <BrowserRouter>
+                        <Routes>
+                            <Route path="/login" element={<Login />} />
+                            <Route path="/signup" element={<Signup />} />
+                            <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
-                        <Route path="/" element={<ProtectedRoute />} >
-                            <Route element={<Layout />}>
-                                <Route index element={<Navigate to="/login" replace />} />
+                            <Route path="/" element={<ProtectedRoute />} >
+                                <Route element={<Layout />}>
+                                    <Route index element={<Navigate to="/login" replace />} />
 
-                                {/* Teacher & Admin Routes */}
-                                <Route element={<ProtectedRoute allowedRoles={['teacher', 'admin']} />}>
-                                    <Route path="teacher" element={<Navigate to="/teacher/dashboard" replace />} />
-                                    <Route path="teacher/dashboard" element={<TeacherDashboard />} />
-                                    <Route path="classes/:id" element={<ClassDetail />} />
-                                    <Route path="teacher/student-detail" element={<TeacherStudentDetail />} />
-                                    <Route path="projects/new" element={<CreateProject />} />
-                                    <Route path="projects/:id/edit" element={<CreateProject />} />
-                                    <Route path="projects/:id" element={<ProjectBoard />} />
+                                    {/* Teacher & Admin Routes */}
+                                    <Route element={<ProtectedRoute allowedRoles={['teacher', 'admin']} />}>
+                                        <Route path="teacher" element={<Navigate to="/teacher/dashboard" replace />} />
+                                        <Route path="teacher/dashboard" element={<TeacherDashboard />} />
+                                        <Route path="classes/:id" element={<ClassDetail />} />
+                                        <Route path="teacher/student-detail" element={<TeacherStudentDetail />} />
+                                        <Route path="projects/new" element={<CreateProject />} />
+                                        <Route path="projects/:id/edit" element={<CreateProject />} />
+                                        <Route path="projects/:id" element={<ProjectBoard />} />
+                                    </Route>
+
+                                    {/* Student Routes */}
+                                    <Route element={<ProtectedRoute allowedRoles={['student']} />}>
+                                        <Route path="student" element={<Navigate to="/student/today" replace />} />
+                                        <Route path="student/today" element={<StudentDashboard />} />
+                                        <Route path="student/projects/:id" element={<StudentProjectBoard />} />
+                                        <Route path="student/reviews/:assignmentId" element={<PeerReviewWorkspace />} />
+                                    </Route>
+
+                                    {/* Shared Routes */}
+                                    <Route path="calendar" element={<Calendar />} />
                                 </Route>
+                            </Route>
 
-                                {/* Student Routes */}
-                                <Route element={<ProtectedRoute allowedRoles={['student']} />}>
-                                    <Route path="student" element={<Navigate to="/student/today" replace />} />
-                                    <Route path="student/today" element={<StudentDashboard />} />
-                                    <Route path="student/projects/:id" element={<StudentProjectBoard />} />
-                                    <Route path="student/reviews/:assignmentId" element={<PeerReviewWorkspace />} />
+                            {/* Admin Routes */}
+                            <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']} />}>
+                                <Route element={<AdminLayout />}>
+                                    <Route path="dashboard" element={<AdminOverview />} />
+                                    <Route path="users" element={<UserManagement />} />
+                                    <Route path="classes" element={<ClassOverview />} />
+                                    <Route path="stats" element={<AdminOverview />} />
                                 </Route>
-
-                                {/* Shared Routes */}
-                                <Route path="calendar" element={<Calendar />} />
                             </Route>
-                        </Route>
 
-                        {/* Admin Routes */}
-                        <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']} />}>
-                            <Route element={<AdminLayout />}>
-                                <Route path="dashboard" element={<AdminOverview />} />
-                                <Route path="users" element={<UserManagement />} />
-                                <Route path="classes" element={<ClassOverview />} />
-                                <Route path="stats" element={<AdminOverview />} />
-                            </Route>
-                        </Route>
-
-                        <Route path="/" element={<Navigate to="/login" replace />} />
-                    </Routes>
-                </BrowserRouter>
+                            <Route path="/" element={<Navigate to="/login" replace />} />
+                        </Routes>
+                    </BrowserRouter>
+                </NotificationProvider>
                 <ToastContainer />
             </ToastProvider>
         </AuthProvider>
