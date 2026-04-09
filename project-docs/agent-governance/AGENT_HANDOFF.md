@@ -247,4 +247,363 @@ Summary:
 Prior intent preserved: Maintaining a clear, calm, and actionable workflow for students and teachers by providing descriptive feedback during session expiration.
 New constraints: None.
 Notes for Antigravity: Future authenticated routes should follow the 401 vs 403 pattern established in `index.php`.
-$content
+## 2026-03-23 06:45 Codex Completed Work
+Files changed:
+- [server/migrations/043_add_is_stuck_resolver_to_checklist.sql](file:///c:/Antigravity_Projects/project-management/server/migrations/043_add_is_stuck_resolver_to_checklist.sql) [NEW]
+- [server/src/domain/TaskChecklistItem.php](file:///c:/Antigravity_Projects/project-management/server/src/domain/TaskChecklistItem.php)
+- [server/src/repositories/mysql/TaskChecklistItemRepository.php](file:///c:/Antigravity_Projects/project-management/server/src/repositories/mysql/TaskChecklistItemRepository.php)
+- [server/src/services/TaskService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/TaskService.php)
+- [client/src/types/index.ts](file:///c:/Antigravity_Projects/project-management/client/src/types/index.ts)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Integrated Stuck Protocol**: Absorbed the `StuckTaskModal` logic into the `TaskDetailsModal` as a side panel/section (Slider-style) to reduce navigational friction.
+- **Guided "Smallest Next Step"**: Implemented a 3-step reflection flow (Reason -> Action -> Commitment). 
+- **Auto-Unstuck**: Created a new `is_stuck_resolver` field for checklist items. Toggling a resolver item to "Complete" now triggers an automatic task status update from "Stuck" to "Active".
+- **Visual Scaffolding**: Added amber highlighting and "STUCK RESOLVER" badges to relevant checklist items to focus student attention.
+- **Audit Logging**: Added specific audit events for action tree commitments and auto-unstuck transitions.
+
+Prior intent preserved: Scaffolded adolescent executive function by guiding students from a broad "I'm stuck" feeling towards a concrete, singular micro-action.
+New constraints: Checklist items created via the Stuck Protocol are flagged as resolvers.
+Notes for Antigravity: The separate `StuckTaskModal.tsx` is no longer in use within the main task flow but remains in the codebase for potential standalone reference or legacy fallback.
+
+## 2026-03-23 12:45 Codex Completed Work
+Files changed:
+- client/src/components/TaskDetailsModal.tsx
+
+Summary:
+Further refined the Stuck Task Assistance Flow with educational "Pro-tip" scaffolding in both the category selection (Step 1) and commitment phases (Step 3). This reinforcement normalizes task blocks and provides the executive function logic behind each recovery action. Also implemented an "explosive" celebratory confetti effect (100+ multi-shape particles) and a refined 800ms success delay before the protocol panel closes, ensuring students see their progress rewarded.
+
+Prior intent preserved:
+Scaffolded adolescent executive function by providing cognitive reinforcement and immediate, high-energy positive feedback for overcoming task paralysis.
+
+New constraints:
+None.
+
+Notes for Antigravity:
+The "Active Micro-Step" view and the "Pro-tip" boxes are rendered conditionally based on `stuckStep` and `stuckReason`.
+
+## 2026-03-23 13:00 Codex Completed Work
+Files changed:
+- server/migrations/044_add_is_stuck_resolver_to_tasks.sql
+- server/migrations/apply_044.php
+- server/src/domain/Task.php
+- server/src/repositories/mysql/TaskRepository.php
+- server/src/services/TaskService.php
+- client/src/types/index.ts
+- client/src/components/TaskDetailsModal.tsx
+
+Summary:
+Implemented the "Break into 3 smaller steps" Stuck Resolver strategy.
+- Extended the database and backend models to support `is_stuck_resolver` on tasks (subtasks).
+- Updated `TaskService` to automatically unstick parent tasks when a resolver subtask is completed.
+- Implemented a new multi-input UI in `TaskDetailsModal` for defining three recovery steps.
+- Added a toggle for users to choose between creating Checklist items (internal) or Subtasks (external/complex).
+- Enhanced the "Active Micro-Step" side panel to display multiple recovery items and support subtask titles.
+- Added educational/executive function descriptions for the choice between checklist and subtasks.
+
+Prior intent preserved:
+- Student-centered scaffolding remains focused on reducing cognitive load.
+- Celebration effects and guided completion logic preserved and extended.
+
+New constraints:
+- Completing *any* subtask marked as `is_stuck_resolver` will trigger the unsticking of the parent task.
+
+Notes for Antigravity:
+- The `is_stuck_resolver` flag is now unified across `task_checklist_items` and `tasks` tables.
+
+## 2026-03-24 00:55 Codex Planned Work
+Scope: Multi-step Stuck Resolution - Auto-completion of Peer Resolvers.
+Files expected: server/src/services/TaskService.php, deploy_ready/src/services/TaskService.php
+Conflict check: None.
+Intent to preserve: "Movement forward demonstrates movement forward." Ensure all recovery steps are resolved once momentum is restored.
+
+## 2026-03-24 01:05 Codex Completed Work
+Files changed:
+- [server/src/services/TaskService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/TaskService.php)
+- [deploy_ready/src/services/TaskService.php](file:///c:/Antigravity_Projects/project-management/deploy_ready/src/services/TaskService.php)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+Implemented the requirement that completing any single "Stuck Resolver" auto-resolves all other recovery steps.
+- Created `resolveAllStuckResolvers` backend helper to batch-complete associated checklist items and subtasks.
+- Updated `TaskService` hooks to trigger resolution on checklist/subtask completion.
+- Updated `TaskDetailsModal.tsx` for immediate local UI feedback when a resolver is checked.
+- Synchronized `server` and `deploy_ready` environments.
+
+Prior intent preserved:
+Scaffolded adolescent executive function by ensuring that once momentum is restored, the "recovery" infrastructure is cleared to focus back on the main task.
+
+## 2026-03-24 06:15 Codex Completed Work
+Files changed:
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [deploy_ready/public/index.php](file:///c:/Antigravity_Projects/project-management/deploy_ready/public/index.php)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+- [client/src/components/SubtaskList.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/SubtaskList.tsx)
+
+Summary:
+- **Stuck Resolver Sync**: Refined backend `resolveAllStuckResolvers` to unmark resolvers instead of completing them, preserving student progress accurately.
+- **Immediate UI Feedback**: Updated `TaskDetailsModal.tsx` with robust optimistic state updates and a 300ms sync delay, ensuring "STUCK RESOLVER" badges vanish instantly upon completing the first step.
+- **Subtask Deletion**: Enabled students to hard-delete subtasks they own or that are unassigned (Quick Add).
+- **Backend Refactoring**: Refactored `index.php` with dedicated routes for `/hard` deletion to resolve 404/regex ambiguity issues.
+- **Permission Broadening**: Relaxed student permissions for subtask deletion to include unassigned tasks within their team context.
+
+Prior intent preserved:
+Scaffolded adolescent executive function by clearing "recovery" infrastructure immediately upon forward progress, while providing safe, localized deletion controls for student-originated subtasks.
+
+New constraints:
+Students can only hard-delete tasks that have a `parent_task_id` (subtasks). Top-level tasks remain restricted for archiving (students) or hard-deletion (teachers).
+
+Notes for Antigravity:
+The "Subtasks" section is rendered at the bottom of the "Overview" tab in the `TaskDetailsModal`. Verification of deletion works via the trash icon in that list.
+# #   2 0 2 6 - 0 3 - 2 4   0 6 : 4 5   C o d e x   C o m p l e t e d   W o r k  
+ F i l e s   c h a n g e d :  
+ -   s e r v e r / s r c / s e r v i c e s / T a s k S e r v i c e . p h p  
+ -   d e p l o y _ r e a d y / s r c / s e r v i c e s / T a s k S e r v i c e . p h p  
+  
+ S u m m a r y :  
+ -   * * S t u c k   R e s o l v e r   S y n c   F i x * * :   F i x e d   a   b u g   w h e r e   c o m p l e t i n g   t h e   f i r s t   " s t u c k   r e s o l v e r "   i t e m   f a i l e d   t o   r e m o v e   t h e   ` i s _ s t u c k _ r e s o l v e r `   b a d g e   f r o m   i t s e l f .   R e m o v e d   t h e   ` ! $ i t e m - > i s C o m p l e t e d `   c h e c k   i n s i d e   ` r e s o l v e A l l S t u c k R e s o l v e r s ( ) `   t o   e n s u r e   a l l   r e s o l v e r s   ( i n c l u d i n g   t h e   c u r r e n t l y   c o m p l e t e d   o n e )   l o s e   t h e i r   s t u c k   r e s o l v e r   s t a t u s .  
+ -   * * S u b t a s k   D e l e t i o n   A u d i t * * :   I n v e s t i g a t e d   t h e   s u b t a s k   h a r d   d e l e t i o n   i s s u e .   C o n f i r m e d   t h e   f r o n t e n d   A P I ,   ` i n d e x . p h p `   r o u t e s   ( ` / t a s k s / { i d } / h a r d ` ) ,   p e r m i s s i o n s   l o g i c   ( ` $ i s S u b t a s k   & &   ( $ i s O w n e r   | |   $ t a s k T o H a r d D e l e t e - > a s s i g n e e I d   = = =   n u l l ) ` ) ,   a n d   d a t a b a s e   ` O N   D E L E T E   C A S C A D E `   f o r e i g n   k e y s   a r e   f u n c t i o n i n g   c o r r e c t l y .   T e s t i n g   w i t h   f u l l y - p o p u l a t e d   s u b t a s k s   ( c o n t a i n i n g   c h e c k l i s t s ,   r e s o u r c e s ,   a n d   r e f l e c t i o n s )   p a s s e d   p e r f e c t l y .  
+ -   * * S y n c h r o n i z a t i o n * * :   C o p i e d   ` s e r v e r / s r c / s e r v i c e s / T a s k S e r v i c e . p h p `   a n d   ` s e r v e r / p u b l i c / i n d e x . p h p `   o v e r   t o   ` d e p l o y _ r e a d y / `   t o   e n s u r e   t h e   l o c a l   e x e c u t i o n   a n d   p a c k a g e d   d e p l o y m e n t   r e m a i n   i d e n t i c a l ,   r e s o l v i n g   a n y   l o c a l   r o u t i n g   c o n f l i c t s   i f   t e s t i n g   f r o m   t h e   ` d e p l o y _ r e a d y `   b u i l d .  
+    - Fixed a z-index conflict by setting `TaskDetailsModal` to `z-[25000]`, ensuring it appears above calendar popovers.
+    - **Persistent Modal Fix**: Ensured the `task` URL parameter is cleared when the modal is closed or when switching between view tabs, preventing unintended reopenings.
+    - Ensured calendar "Day Details" overlay closes automatically when a task is selected.
+
+Prior intent preserved: Maintained role-based visibility and student focus.
+New constraints: `TaskDetailsModal` now has a prioritized z-index for overlay management.
+Notes for Antigravity: The calendar fix required updates across both student/teacher boards and the shared `CalendarView` to handle clicks consistently without extra navigation.
+## 2026-03-17 05:10 Codex Completed Work
+Files changed:
+- [server/src/services/StudentDashboardService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/StudentDashboardService.php)
+- [client/src/pages/student/Dashboard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/student/Dashboard.tsx)
+- [client/src/pages/ProjectBoard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/ProjectBoard.tsx)
+
+Summary:
+- **Dashboard Synchronization**: Updated the student "Mission Control" (Dashboard) to include attachment indicators and subtask progress bars, aligning it with the main project board.
+- **Teacher Control Restoration**: Restored labeled "Edit Project" and "Manage Team" buttons to the project header, ensuring they are prominent and accessible for both Teachers and Admins.
+- **Header Optimization**: Removed the redundant top-right "New Task" button from the header to clarify the UI.
+- **Role Alignment**: Expanded staff-level controls to support the `admin` role explicitly.
+
+Prior intent preserved: Subtask and attachment visibility remains consistent across all student and teacher views to reduce cognitive load and simplify glanceability.
+New constraints: None.
+
+## 2026-03-22 05:30 Codex Completed Work
+Files changed:
+- [server/src/repositories/TaskRepositoryInterface.php](file:///c:/Antigravity_Projects/project-management/server/src/repositories/TaskRepositoryInterface.php)
+- [server/src/repositories/mysql/TaskRepository.php](file:///c:/Antigravity_Projects/project-management/server/src/repositories/mysql/TaskRepository.php)
+- [server/src/services/TaskService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/TaskService.php)
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [client/src/api/client.ts](file:///c:/Antigravity_Projects/project-management/client/src/api/client.ts)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+- [deploy.ps1](file:///c:/Antigravity_Projects/project-management/deploy.ps1)
+
+Summary:
+- **Task Management Refinement**: Restored task archiving (soft delete) and implemented a new **Hard Delete** functionality, restricted to teachers and admins.
+- **Backend Architecture**: Updated `TaskRepository` and `TaskService` to support permanent SQL deletion.
+- **API Protection**: Added `/api/v1/tasks/{id}/hard` route with role-based access control.
+- **UI Interaction**: Integrated Archive and Delete actions into the bottom of `TaskDetailsModal` with confirmation prompts and toast notifications.
+- **Board Control Restoration**: Restored "Edit Project" and "Manage Team" buttons to the project header, removing redundant buttons to clarify the workspace.
+- **Deployment Fix**: Overhauled `deploy.ps1` to correctly structure the `deploy_ready` directory for IONOS (Linux) hosting, including lowercase conversion and proper web-root alignment.
+
+Prior intent preserved: Scaffolded student executive function by keeping the archive action simple while providing teachers with advanced deletion controls.
+New constraints: `deploy_ready` must now be built using `deploy.ps1` to ensure correct folder structure.
+Notes for Antigravity: The `LetterBoard` project styling work requested during this session was handled in isolation within its own directory and did not affect the PBL Project codebase.
+
+## 2026-03-22 05:35 Codex Completed Work
+Files changed:
+- [server/src/services/AdminService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/AdminService.php)
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [client/src/pages/admin/UserManagement.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/admin/UserManagement.tsx)
+
+Summary:
+- **Bulk User Upload**: Implemented a system for administrators to mass-create student and teacher accounts via CSV.
+- **Batching Strategy**: To prevent server timeouts with large datasets, the frontend implements a sequential batching engine (50 users per request).
+- **Backend Validation**: `AdminService` now includes `bulkCreateUsers` which validates email formats, checks for duplicates, and ensures all required fields are present.
+- **Student ID Support**: Added a `student_id` field to the database and bulk upload parser for future cross-platform integration.
+- **UI UX Improvements**: 
+  - Fixed **Bulk Upload Modal** state transitions to ensure accurate result counts only show after processing is complete.
+  - Overhauled **Admin Layout** to make the sidebar sticky (`h-screen`), ensuring navigation links (Logout/Teacher View) remain accessible on long pages.
+
+Prior intent preserved: Simplified administrative overhead for high school teachers/admins while maintaining clear feedback on data integrity issues and ensuring consistent navigation UX.
+New constraints: CSV must follow the header format `first_name, last_name, email, password, student_id`.
+Notes for Antigravity: Ensure that any future user-related changes preserve the `bulkCreateUsers` contract in `AdminService`.
+
+## 2026-03-22 04:55 Codex Completed Work
+Files changed:
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [client/src/api/client.ts](file:///c:/Antigravity_Projects/project-management/client/src/api/client.ts)
+- [client/src/pages/Login.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/Login.tsx)
+
+Summary:
+- **Global Auth Handling**: Normalized API error codes to distinguish between **401 Unauthorized** (not logged in) and **403 Forbidden** (insufficient role). 
+- **Robust Redirection**: Updated the frontend API client to intercept 401/403 errors and set a `session_expired` flag in `localStorage` before redirecting to `/login`.
+- **User Feedback**: Updated `Login.tsx` to detect the expiration flag and display a clear notification toast, resolving the issue where users were left on a broken page after session timeout.
+
+Prior intent preserved: Maintaining a clear, calm, and actionable workflow for students and teachers by providing descriptive feedback during session expiration.
+New constraints: None.
+Notes for Antigravity: Future authenticated routes should follow the 401 vs 403 pattern established in `index.php`.
+## 2026-03-23 06:45 Codex Completed Work
+Files changed:
+- [server/migrations/043_add_is_stuck_resolver_to_checklist.sql](file:///c:/Antigravity_Projects/project-management/server/migrations/043_add_is_stuck_resolver_to_checklist.sql) [NEW]
+- [server/src/domain/TaskChecklistItem.php](file:///c:/Antigravity_Projects/project-management/server/src/domain/TaskChecklistItem.php)
+- [server/src/repositories/mysql/TaskChecklistItemRepository.php](file:///c:/Antigravity_Projects/project-management/server/src/repositories/mysql/TaskChecklistItemRepository.php)
+- [server/src/services/TaskService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/TaskService.php)
+- [client/src/types/index.ts](file:///c:/Antigravity_Projects/project-management/client/src/types/index.ts)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Integrated Stuck Protocol**: Absorbed the `StuckTaskModal` logic into the `TaskDetailsModal` as a side panel/section (Slider-style) to reduce navigational friction.
+- **Guided "Smallest Next Step"**: Implemented a 3-step reflection flow (Reason -> Action -> Commitment). 
+- **Auto-Unstuck**: Created a new `is_stuck_resolver` field for checklist items. Toggling a resolver item to "Complete" now triggers an automatic task status update from "Stuck" to "Active".
+- **Visual Scaffolding**: Added amber highlighting and "STUCK RESOLVER" badges to relevant checklist items to focus student attention.
+- **Audit Logging**: Added specific audit events for action tree commitments and auto-unstuck transitions.
+
+Prior intent preserved: Scaffolded adolescent executive function by guiding students from a broad "I'm stuck" feeling towards a concrete, singular micro-action.
+New constraints: Checklist items created via the Stuck Protocol are flagged as resolvers.
+Notes for Antigravity: The separate `StuckTaskModal.tsx` is no longer in use within the main task flow but remains in the codebase for potential standalone reference or legacy fallback.
+
+## 2026-03-23 12:45 Codex Completed Work
+Files changed:
+- client/src/components/TaskDetailsModal.tsx
+
+Summary:
+Further refined the Stuck Task Assistance Flow with educational "Pro-tip" scaffolding in both the category selection (Step 1) and commitment phases (Step 3). This reinforcement normalizes task blocks and provides the executive function logic behind each recovery action. Also implemented an "explosive" celebratory confetti effect (100+ multi-shape particles) and a refined 800ms success delay before the protocol panel closes, ensuring students see their progress rewarded.
+
+Prior intent preserved:
+Scaffolded adolescent executive function by providing cognitive reinforcement and immediate, high-energy positive feedback for overcoming task paralysis.
+
+New constraints:
+None.
+
+Notes for Antigravity:
+The "Active Micro-Step" view and the "Pro-tip" boxes are rendered conditionally based on `stuckStep` and `stuckReason`.
+
+## 2026-03-23 13:00 Codex Completed Work
+Files changed:
+- server/migrations/044_add_is_stuck_resolver_to_tasks.sql
+- server/migrations/apply_044.php
+- server/src/domain/Task.php
+- server/src/repositories/mysql/TaskRepository.php
+- server/src/services/TaskService.php
+- client/src/types/index.ts
+- client/src/components/TaskDetailsModal.tsx
+
+Summary:
+Implemented the "Break into 3 smaller steps" Stuck Resolver strategy.
+- Extended the database and backend models to support `is_stuck_resolver` on tasks (subtasks).
+- Updated `TaskService` to automatically unstick parent tasks when a resolver subtask is completed.
+- Implemented a new multi-input UI in `TaskDetailsModal` for defining three recovery steps.
+- Added a toggle for users to choose between creating Checklist items (internal) or Subtasks (external/complex).
+- Enhanced the "Active Micro-Step" side panel to display multiple recovery items and support subtask titles.
+- Added educational/executive function descriptions for the choice between checklist and subtasks.
+
+Prior intent preserved:
+- Student-centered scaffolding remains focused on reducing cognitive load.
+- Celebration effects and guided completion logic preserved and extended.
+
+New constraints:
+- Completing *any* subtask marked as `is_stuck_resolver` will trigger the unsticking of the parent task.
+
+Notes for Antigravity:
+- The `is_stuck_resolver` flag is now unified across `task_checklist_items` and `tasks` tables.
+
+## 2026-03-24 00:55 Codex Planned Work
+Scope: Multi-step Stuck Resolution - Auto-completion of Peer Resolvers.
+Files expected: server/src/services/TaskService.php, deploy_ready/src/services/TaskService.php
+Conflict check: None.
+Intent to preserve: "Movement forward demonstrates movement forward." Ensure all recovery steps are resolved once momentum is restored.
+
+## 2026-03-24 01:05 Codex Completed Work
+Files changed:
+- [server/src/services/TaskService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/TaskService.php)
+- [deploy_ready/src/services/TaskService.php](file:///c:/Antigravity_Projects/project-management/deploy_ready/src/services/TaskService.php)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+Implemented the requirement that completing any single "Stuck Resolver" auto-resolves all other recovery steps.
+- Created `resolveAllStuckResolvers` backend helper to batch-complete associated checklist items and subtasks.
+- Updated `TaskService` hooks to trigger resolution on checklist/subtask completion.
+- Updated `TaskDetailsModal.tsx` for immediate local UI feedback when a resolver is checked.
+- Synchronized `server` and `deploy_ready` environments.
+
+Prior intent preserved:
+Scaffolded adolescent executive function by ensuring that once momentum is restored, the "recovery" infrastructure is cleared to focus back on the main task.
+
+## 2026-03-24 06:15 Codex Completed Work
+Files changed:
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [deploy_ready/public/index.php](file:///c:/Antigravity_Projects/project-management/deploy_ready/public/index.php)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+- [client/src/components/SubtaskList.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/SubtaskList.tsx)
+
+Summary:
+- **Stuck Resolver Sync**: Refined backend `resolveAllStuckResolvers` to unmark resolvers instead of completing them, preserving student progress accurately.
+- **Immediate UI Feedback**: Updated `TaskDetailsModal.tsx` with robust optimistic state updates and a 300ms sync delay, ensuring "STUCK RESOLVER" badges vanish instantly upon completing the first step.
+- **Subtask Deletion**: Enabled students to hard-delete subtasks they own or that are unassigned (Quick Add).
+- **Backend Refactoring**: Refactored `index.php` with dedicated routes for `/hard` deletion to resolve 404/regex ambiguity issues.
+- **Permission Broadening**: Relaxed student permissions for subtask deletion to include unassigned tasks within their team context.
+
+Prior intent preserved:
+Scaffolded adolescent executive function by clearing "recovery" infrastructure immediately upon forward progress, while providing safe, localized deletion controls for student-originated subtasks.
+
+New constraints:
+Students can only hard-delete tasks that have a `parent_task_id` (subtasks). Top-level tasks remain restricted for archiving (students) or hard-deletion (teachers).
+
+Notes for Antigravity:
+The "Subtasks" section is rendered at the bottom of the "Overview" tab in the `TaskDetailsModal`. Verification of deletion works via the trash icon in that list.
+ # #   2 0 2 6 - 0 3 - 2 4   0 6 : 4 5   C o d e x   C o m p l e t e d   W o r k  
+ F i l e s   c h a n g e d :  
+ -   s e r v e r / s r c / s e r v i c e s / T a s k S e r v i c e . p h p  
+ -   d e p l o y _ r e a d y / s r c / s e r v i c e s / T a s k S e r v i c e . p h p  
+  
+ S u m m a r y :  
+ -   * * S t u c k   R e s o l v e r   S y n c   F i x * * :   F i x e d   a   b u g   w h e r e   c o m p l e t i n g   t h e   f i r s t   " s t u c k   r e s o l v e r "   i t e m   f a i l e d   t o   r e m o v e   t h e   ` i s _ s t u c k _ r e s o l v e r `   b a d g e   f r o m   i t s e l f .   R e m o v e d   t h e   ` ! $ i t e m - > i s C o m p l e t e d `   c h e c k   i n s i d e   ` r e s o l v e A l l S t u c k R e s o l v e r s ( ) `   t o   e n s u r e   a l l   r e s o l v e r s   ( i n c l u d i n g   t h e   c u r r e n t l y   c o m p l e t e d   o n e )   l o s e   t h e i r   s t u c k   r e s o l v e r   s t a t u s .  
+ -   * * S u b t a s k   D e l e t i o n   A u d i t * * :   I n v e s t i g a t e d   t h e   s u b t a s k   h a r d   d e l e t i o n   i s s u e .   C o n f i r m e d   t h e   f r o n t e n d   A P I ,   ` i n d e x . p h p `   r o u t e s   ( ` / t a s k s / { i d } / h a r d ` ) ,   p e r m i s s i o n s   l o g i c   ( ` $ i s S u b t a s k   & &   ( $ i s O w n e r   | |   $ t a s k T o H a r d D e l e t e - > a s s i g n e e I d   = = =   n u l l ) ` ) ,   a n d   d a t a b a s e   ` O N   D E L E T E   C A S C A D E `   f o r e i g n   k e y s   a r e   f u n c t i o n i n g   c o r r e c t l y .   T e s t i n g   w i t h   f u l l y - p o p u l a t e d   s u b t a s k s   ( c o n t a i n i n g   c h e c k l i s t s ,   r e s o u r c e s ,   a n d   r e f l e c t i o n s )   p a s s e d   p e r f e c t l y .  
+ -   * * S y n c h r o n i z a t i o n * * :   C o p i e d   ` s e r v e r / s r c / s e r v i c e s / T a s k S e r v i c e . p h p `   a n d   ` s e r v e r / p u b l i c / i n d e x . p h p `   o v e r   t o   ` d e p l o y _ r e a d y / `   t o   e n s u r e   t h e   l o c a l   e x e c u t i o n   a n d   p a c k a g e d   d e p l o y m e n t   r e m a i n   i d e n t i c a l ,   r e s o l v i n g   a n y   l o c a l   r o u t i n g   c o n f l i c t s   i f   t e s t i n g   f r o m   t h e   ` d e p l o y _ r e a d y `   b u i l d .  
+  
+ P r i o r   i n t e n t   p r e s e r v e d :  
+ M a i n t a i n e d   t h e   s t r i c t   c a s c a d i n g   d e l e t e   i n t e g r i t y   w i t h o u t   r i s k i n g   o r p h a n e d   r e c o r d s .   M a i n t a i n e d   t h e   i m m e d i a t e   r e d u c t i o n   o f   c o g n i t i v e   l o a d   b y   e n s u r i n g   t h e   s t u c k   b a d g e   v a n i s h e s   p e r f e c t l y .    
+  
+ N o t e s   f o r   A n t i g r a v i t y :  
+ S u b t a s k   d e l e t i o n   f u n c t i o n s   c o r r e c t l y   f o r   t a s k s   y o u   o w n   o r   u n a s s i g n e d   q u i c k - a d d s .   I f   d e l e t i o n   s t i l l   f a i l s   o n   t h e   U I   f o r   y o u ,   i t   i s   b e c a u s e   y o u   a r e   a t t e m p t i n g   t o   d e l e t e   a   s u b t a s k   a s s i g n e d   t o   a   d i f f e r e n t   u s e r ,   w h i c h   c o r r e c t l y   t r i g g e r s   a   4 0 3   F o r b i d d e n   u n d e r   t h e   n e w   s t u d e n t   r u l e s . 
+  
+ P r i o r   i n t e n t   p r e s e r v e d :  
+ M a i n t a i n e d   t h e   s t r i c t   c a s c a d i n g   d e l e t e   i n t e g r i t y   w i t h o u t   r i s k i n g   o r p h a n e d   r e c o r d s .   M a i n t a i n e d   t h e   i m m e d i a t e   r e d u c t i o n   o f   c o g n i t i v e   l o a d   b y   e n s u r i n g   t h e   s t u c k   b a d g e   v a n i s h e s   p e r f e c t l y .    
+  
+ N o t e s   f o r   A n t i g r a v i t y :  
+   S u b t a s k   d e l e t i o n   f u n c t i o n s   c o r r e c t l y   f o r   t a s k s   y o u   o w n   o r   u n a s s i g n e d   q u i c k - a d d s .   I f   d e l e t i o n   s t i l l   f a i l s   o n   t h e   U I   f o r   y o u ,   i t   i s   b e c a u s e   y o u   a r e   a t t e m p t i n g   t o   d e l e t e   a   s u b t a s k   a s s i g n e d   t o   a   d i f f e r e n t   u s e r ,   w h i c h   c o r r e c t l y   t r i g g e r s   a   4 0 3   F o r b i d d e n   u n d e r   t h e   n e w   s t u d e n t   r u l e s .
+
+## 2026-04-04 16:10 Codex Planned Work
+Scope: Stuck Protocol Expansion - Historical Visibility & Focus Scaffolding.
+Files expected:
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [deploy_ready/public/index.php](file:///c:/Antigravity_Projects/project-management/deploy_ready/public/index.php)
+- [client/src/api/client.ts](file:///c:/Antigravity_Projects/project-management/client/src/api/client.ts)
+- [client/src/types/index.ts](file:///c:/Antigravity_Projects/project-management/client/src/types/index.ts)
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+Conflict check: Overlapping edits in `TaskDetailsModal.tsx` (previously stabilized). Extension adds new historical views and focus banners.
+Intent to preserve: Adolescent EF support through micro-step focus and visible problem-solving history. Maintain teacher visibility for coaching.
+
+## 2026-03-25 09:45 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+- [client/src/components/SubtaskList.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/SubtaskList.tsx)
+- [client/src/components/board/TeamKanban.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/board/TeamKanban.tsx)
+- [client/src/pages/ProjectBoard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/ProjectBoard.tsx)
+- [client/src/pages/student/Dashboard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/student/Dashboard.tsx)
+
+Summary:
+- **Stabilized TaskDetailsModal**: Atomically refactored the component to resolve catastrophic JSX corruption and duplicated code blocks.
+- **Deep-Dive Subtask Navigation**: Implemented a navigation history stack and directional animations (slide-in/slide-out) for clicking subtasks within the modal.
+- **Flicker-Free State Sync**: Hardened navigation logic in `TaskDetailsModal.tsx` and synchronized `selectedTask` explicitly with the `task` URL parameter in `ProjectBoard.tsx` (Teacher & Student) to prevent race conditions and unintended state resets between parent task and subtask views.
+- **Subtask Panels**: Restricted subtask creation to top-level tasks; subtask list is hidden when viewing a subtask to maintain hierarchy.
+- **UX Refinements**: Moved and styled the "Back to Parent" button and integrated project ID visibility in the header.
+- **Bugfix ('0' Rendering)**: Resolved a persistent UI bug where `resource_count` of `0` was rendered as a literal string across Kanban, Project Board, and Dashboard views.
+
+Prior intent preserved:
+- Reduced student cognitive load by clarifying task hierarchies and providing smooth, predictable navigation.
+- Preserved teacher visibility while ensuring students can manage deep task trees without UI friction.
+
+Notes for Antigravity:
+The `TaskDetailsModal` is now the primary navigation hub for tasks and subtasks. The `history` array manages the breadcrumb-style navigation.
+  

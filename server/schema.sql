@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) DEFAULT NULL,
     auth_token VARCHAR(255) DEFAULT NULL,
-    role ENUM('teacher', 'student') NOT NULL,
+    role ENUM('teacher', 'student', 'admin') NOT NULL,
+    student_id VARCHAR(50) DEFAULT NULL,
+    requires_password_change TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 -- ---------------------------------------------------------
@@ -114,6 +116,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     start_date DATE NULL,
     duration_days INT DEFAULT 1,
     sort_order INT NOT NULL DEFAULT 0,
+    is_stuck_resolver TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL DEFAULT NULL,
@@ -175,6 +178,35 @@ CREATE TABLE IF NOT EXISTS task_reflections (
     task_id INT NOT NULL,
     user_id INT NOT NULL,
     content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+-- ---------------------------------------------------------
+-- Table: task_checklist_items
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS task_checklist_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_id INT NOT NULL,
+    content TEXT NOT NULL,
+    is_completed BOOLEAN DEFAULT FALSE,
+    sort_order INT DEFAULT 0,
+    is_stuck_resolver BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    INDEX idx_task_id (task_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+-- ---------------------------------------------------------
+-- Table: task_messages
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS task_messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_id INT NOT NULL,
+    user_id INT NOT NULL,
+    message TEXT NOT NULL,
+    visibility ENUM('team', 'teacher') DEFAULT 'team',
+    is_system BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

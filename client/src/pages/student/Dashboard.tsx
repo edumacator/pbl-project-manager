@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import { Task } from '../../types';
 import { Clock, AlertCircle, MessageSquare, Lock, PartyPopper, AlertTriangle, Layers, UserPlus, Paperclip } from 'lucide-react';
-import StuckTaskModal from '../../components/StuckTaskModal';
 import { useToast } from '../../contexts/ToastContext';
 
 // Fix type inheritance issue where Task import was missing
@@ -40,7 +39,6 @@ interface DashboardData {
 const StudentDashboard: React.FC = () => {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [stuckModalTask, setStuckModalTask] = useState<DashboardTask | null>(null);
     const [expandedReflectionTasks, setExpandedReflectionTasks] = useState<Set<number>>(new Set());
     const { addToast } = useToast();
     const [joinCode, setJoinCode] = useState('');
@@ -216,7 +214,7 @@ const StudentDashboard: React.FC = () => {
                                                                     {task.priority}
                                                                 </span>
                                                             )}
-                                                            {task.resource_count !== undefined && task.resource_count > 0 && (
+                                                            {(task.resource_count ?? 0) > 0 && (
                                                                 <div title={`${task.resource_count} resources attached`}>
                                                                     <Paperclip className="w-3 h-3 text-indigo-300" />
                                                                 </div>
@@ -286,7 +284,7 @@ const StudentDashboard: React.FC = () => {
                                                     </span>
                                                 )}
 
-                                                {task.resource_count !== undefined && task.resource_count > 0 && (
+                                                {(task.resource_count ?? 0) > 0 && (
                                                     <div title={`${task.resource_count} resources attached`}>
                                                         <Paperclip className="w-3 h-3 text-indigo-400" />
                                                     </div>
@@ -343,20 +341,20 @@ const StudentDashboard: React.FC = () => {
                         ) : (
                             <div className="space-y-3">
                                 {stuckTasks.map((task: DashboardTask) => (
-                                    <div
+                                    <Link
                                         key={task.id}
-                                        onClick={() => setStuckModalTask(task)}
-                                        className="bg-white p-3 rounded-lg border border-amber-200 shadow-sm cursor-pointer hover:shadow-md transition-all group"
+                                        to={`/student/projects/${task.project_id}?task=${task.id}`}
+                                        className="block bg-white p-3 rounded-lg border border-amber-200 shadow-sm hover:shadow-md transition-all group"
                                         title="Click to Resolve"
                                     >
                                         <div className="font-semibold text-gray-900 text-sm group-hover:text-amber-700 transition-colors line-clamp-2 mb-1">
                                             {task.title}
                                         </div>
                                         <div className="text-[10px] text-amber-600 uppercase font-bold mb-2">Needs Action</div>
-                                        <button className="w-full text-center py-1.5 bg-amber-600 text-white rounded text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm">
+                                        <div className="w-full text-center py-1.5 bg-amber-600 text-white rounded text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm">
                                             Get Unstuck
-                                        </button>
-                                    </div>
+                                        </div>
+                                    </Link>
                                 ))}
                             </div>
                         )}
@@ -477,17 +475,6 @@ const StudentDashboard: React.FC = () => {
                     </section>
                 </div>
             </div>
-
-            {stuckModalTask && (
-                <StuckTaskModal
-                    task={stuckModalTask}
-                    onClose={() => setStuckModalTask(null)}
-                    onResolved={() => {
-                        setStuckModalTask(null);
-                        loadDashboard(); // Refresh to remove task from stuck list
-                    }}
-                />
-            )}
         </div>
     );
 };

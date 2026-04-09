@@ -77,7 +77,8 @@ const Layout: React.FC = () => {
                         </div>
                     )}
                 </div>
-                <nav className="flex-1 mt-4 px-4 space-y-2">
+
+                <nav className="flex-1 mt-4 px-4 space-y-2 overflow-y-auto">
                     <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Menu</p>
 
                     {user?.role === 'teacher' && (
@@ -90,29 +91,18 @@ const Layout: React.FC = () => {
                                 <Users className="w-5 h-5 mr-3" />
                                 Student Detail
                             </Link>
-                            <Link to="/calendar" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
-                                <CalendarIcon className="w-5 h-5 mr-3" />
-                                Calendar
-                            </Link>
                         </>
                     )}
+
                     {(user?.role as any) === 'admin' && (
                         <>
                             <Link to="/teacher/dashboard" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 rounded-lg transition-colors ${location.pathname === '/teacher/dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
                                 <LayoutDashboard className="w-5 h-5 mr-3" />
                                 Dashboard
                             </Link>
-                            <Link to="/teacher/student-detail" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/teacher/student-detail' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
-                                <Users className="w-5 h-5 mr-3" />
-                                Student Detail
-                            </Link>
                             <Link to="/admin/dashboard" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors bg-amber-50 text-amber-700 hover:bg-amber-100`}>
                                 <ShieldCheck className="w-5 h-5 mr-3" />
                                 Admin Dashboard
-                            </Link>
-                            <Link to="/calendar" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
-                                <CalendarIcon className="w-5 h-5 mr-3" />
-                                Calendar
                             </Link>
                         </>
                     )}
@@ -123,12 +113,13 @@ const Layout: React.FC = () => {
                                 <CheckSquare className="w-5 h-5 mr-3" />
                                 Student Today
                             </Link>
-                            <Link to="/calendar" className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
-                                <CalendarIcon className="w-5 h-5 mr-3" />
-                                Calendar
-                            </Link>
                         </>
                     )}
+
+                    <Link to="/calendar" onClick={() => setIsSidebarOpen(false)} className={`flex items-center px-4 py-2 mt-1 rounded-lg transition-colors ${location.pathname === '/calendar' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        <CalendarIcon className="w-5 h-5 mr-3" />
+                        Calendar
+                    </Link>
 
                     <div className="pt-4 mt-4 border-t border-gray-100">
                         <div className="flex items-center justify-between px-4 mb-2">
@@ -150,25 +141,26 @@ const Layout: React.FC = () => {
                                     </Link>
                                 );
                             })}
-                            {projects.length === 0 && (
-                                <div className="px-4 py-2 text-xs text-gray-400 italic">No projects yet</div>
-                            )}
                         </div>
                     </div>
                 </nav>
-                <div className="p-4 border-t border-gray-200">
-                    <button
+
+                <div className="p-4 border-t border-gray-100">
+                    <button 
                         onClick={logout}
-                        className="flex items-center w-full px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all w-full group"
                     >
-                        <LogOut className="w-5 h-5 mr-3" />
-                        Logout
+                        <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                        <span className="font-bold text-sm">Logout</span>
                     </button>
+                    <div className="mt-2 px-4">
+                        <span className="text-[10px] text-gray-300 font-medium uppercase tracking-widest leading-none">v1.1.0-notifications</span>
+                    </div>
                 </div>
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                 {/* Mobile Header */}
                 <header className="lg:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-30">
                     <button 

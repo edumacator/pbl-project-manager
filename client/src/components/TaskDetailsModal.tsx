@@ -7,6 +7,8 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { SubtaskList } from './SubtaskList';
 
+import { useNotifications } from '../contexts/NotificationContext';
+
 interface TaskDetailsModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -55,8 +57,19 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     const [stuckPanelCollapsed, setStuckPanelCollapsed] = useState(false);
     const [stuckSteps, setStuckSteps] = useState<string[]>(['', '', '']);
     const [stuckResolutionType, setStuckResolutionType] = useState<'checklist' | 'subtask'>('checklist');
+    const [stuckSubStep, setStuckSubStep] = useState<'rewrite' | 'action' | 'checkin' | 'pinging'>('rewrite');
+    const [rephrasedText, setRephrasedText] = useState("");
     const [showAllMessages, setShowAllMessages] = useState(false);
+    const { dismissTaskNotifications } = useNotifications();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (isOpen && localTask?.id) {
+            dismissTaskNotifications(localTask.id);
+        }
+    }, [isOpen, localTask?.id, dismissTaskNotifications]);
+
+    const hasDismissedRef = useRef<number | null>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -133,11 +146,24 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
         }
     }, [isOpen, activeTab, localTask?.id]);
 
+    // Background polling for live updates while the modal is open (Discussion, Stuck Protocol, etc.)
     useEffect(() => {
         if (isOpen && localTask?.id) {
             fetchData();
+            const interval = setInterval(fetchData, 10000); // Poll every 10s
+            return () => clearInterval(interval);
         }
     }, [isOpen, localTask?.id]);
+
+    // Handle initial notification dismissal
+    useEffect(() => {
+        if (isOpen && localTask?.id && hasDismissedRef.current !== localTask.id) {
+            dismissTaskNotifications(localTask.id);
+            hasDismissedRef.current = localTask.id;
+        } else if (!isOpen) {
+            hasDismissedRef.current = null;
+        }
+    }, [isOpen, localTask?.id, dismissTaskNotifications]);
 
     const handleFetchAllMessages = () => {
         setShowAllMessages(true);
@@ -195,11 +221,53 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                 setStuckPanelCollapsed(false);
                 setStuckSteps(['', '', '']);
                 setStuckResolutionType('checklist');
+                setStuckSubStep('rewrite');
+                setRephrasedText("");
             }
         } catch (err) {
             console.error("Failed to toggle stuck state", err);
             setIsStuck(!newStuckState);
             addToast("Failed to update task state.", "error");
+        }
+    };
+
+    const handleCreateStuckChecklist = async () => {
+        if (!rephrasedText.trim() || !task) return;
+        setLoading(true);
+        try {
+            await api.post(`/tasks/${task.id}/checklist`, {
+                content: rephrasedText,
+                is_stuck_resolver: true
+            });
+            setStuckSubStep('checkin');
+            fetchData();
+        } catch (err) {
+            console.error("Failed to create checklist item:", err);
+            addToast("Failed to save checklist item.", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateStuckSubtask = async () => {
+        if (!rephrasedText.trim() || !task) return;
+        setLoading(true);
+        try {
+            await api.post(`/projects/${project.id}/tasks`, {
+                title: rephrasedText,
+                parent_task_id: task.id,
+                status: 'todo',
+                priority: 'P3',
+                is_stuck_resolver: true,
+                assignee_id: user?.id
+            });
+            setStuckSubStep('checkin');
+            fetchData();
+        } catch (err) {
+            console.error("Failed to create subtask:", err);
+            addToast("Failed to save subtask.", "error");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -261,24 +329,41 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
     };
 
     const handleStuckSubmit = async () => {
+        const isRewriteFlow = stuckReason === '2' && stuckActionId === 'A';
         const isThreeSteps = (stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A");
-        const hasText = isThreeSteps ? stuckSteps.every(s => s.trim()) : stuckNextActionText.trim();
+        const hasText = isRewriteFlow ? rephrasedText.trim() : (isThreeSteps ? stuckSteps.every(s => s.trim()) : stuckNextActionText.trim());
         
-        if (!hasText) return;
+        if (!hasText) {
+            addToast("Please complete the required text to proceed.", "error");
+            return;
+        }
+
         setLoading(true);
         try {
             const reasonText = ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].title;
             const selectedActionText = ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text || '';
             
-            const isPing = selectedActionText.includes('Ping');
             const isSmallestStep = stuckReason === "1" && stuckActionId === "A";
+            const isPing = selectedActionText.includes('Ping') || stuckSubStep === 'pinging';
+            const textToLog = isRewriteFlow ? rephrasedText : (isThreeSteps ? stuckSteps.join(' | ') : stuckNextActionText);
 
             await api.post(`/tasks/${task?.id}/stuck-log`, {
                 reason: reasonText,
                 action_taken: selectedActionText,
-                next_action_text: isThreeSteps ? stuckSteps.join(' | ') : stuckNextActionText,
+                next_action_text: textToLog,
                 should_unstick: !isPing
             });
+
+            if (isPing) {
+                const visibility = selectedActionText.includes('Teacher') ? 'teacher' : 'team';
+                // For pings, we always want the drafted message which is either stuckNextActionText 
+                // or textToLog (for standard flows). In the rewrite flow, it's always stuckNextActionText.
+                const message = (isRewriteFlow || stuckSubStep === 'pinging') ? stuckNextActionText : textToLog;
+                await api.post(`/tasks/${task?.id}/messages`, {
+                    message: message,
+                    visibility: visibility
+                });
+            }
 
             if (isSmallestStep) {
                 await api.post(`/tasks/${task?.id}/checklist`, { 
@@ -726,58 +811,217 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ isOpen, onCl
                                     )}
                                     {stuckStep === 3 && (
                                         <div className="space-y-4 animate-in fade-in slide-in-from-right-2 text-center">
-                                            <button onClick={() => setStuckStep(2)} className="text-[10px] text-amber-600 hover:underline">&larr; Back</button>
-                                            {((stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A")) ? (
-                                                <div className="space-y-3 text-left">
-                                                    <div className="p-3 bg-amber-100/50 rounded-lg border border-amber-200">
-                                                        <h5 className="text-[10px] font-bold text-amber-900 uppercase mb-2">Break it down:</h5>
-                                                        <div className="space-y-2">
-                                                            {stuckSteps.map((s, idx) => (
-                                                                <input key={idx} value={s} onChange={(e) => {
-                                                                    const newSteps = [...stuckSteps];
-                                                                    newSteps[idx] = e.target.value;
-                                                                    setStuckSteps(newSteps);
-                                                                }} placeholder={`Step ${idx + 1}...`} className="w-full p-2 text-xs rounded border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none" />
-                                                            ))}
+                                            <button onClick={() => {
+                                                if (stuckReason === '2' && stuckActionId === 'A' && stuckSubStep !== 'rewrite') {
+                                                    if (stuckSubStep === 'action') setStuckSubStep('rewrite');
+                                                    else if (stuckSubStep === 'checkin') setStuckSubStep('action');
+                                                    else if (stuckSubStep === 'pinging') setStuckSubStep('checkin');
+                                                } else {
+                                                    setStuckStep(2);
+                                                }
+                                            }} className="text-[10px] text-amber-600 hover:underline">&larr; Back</button>
+                                            
+                                            {/* SPECIALIZED FLOW: Rewrite Instructions (2-A) */}
+                                            {stuckReason === '2' && stuckActionId === 'A' ? (
+                                                <div className="space-y-4 text-left">
+                                                    {stuckSubStep === 'rewrite' && (
+                                                        <div className="animate-in fade-in duration-300">
+                                                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-3 flex gap-3 items-start">
+                                                                <div className="bg-blue-500 p-1.5 rounded text-white shrink-0">
+                                                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                                                </div>
+                                                                <p className="text-blue-900 text-[11px] leading-tight">
+                                                                    Feeling stuck is a normal part of the process. Rephrasing the goal is a common and effective strategy to help you understand what needs to be done next.
+                                                                </p>
+                                                            </div>
+                                                            <h4 className="text-xs font-bold text-gray-900 mb-3">Rephrase the goal in your own words:</h4>
+                                                            <textarea
+                                                                value={rephrasedText}
+                                                                onChange={(e) => setRephrasedText(e.target.value)}
+                                                                placeholder="What are we trying to achieve here? Write it simply..."
+                                                                className="w-full p-3 rounded-lg border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none resize-none min-h-[100px] text-sm text-gray-800"
+                                                                autoFocus
+                                                            />
+                                                            <button
+                                                                onClick={() => setStuckSubStep('action')}
+                                                                disabled={!rephrasedText.trim()}
+                                                                className="w-full mt-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg font-bold text-xs flex items-center justify-center transition-all"
+                                                            >
+                                                                Continue <ArrowRight className="w-3 h-3 ml-2" />
+                                                            </button>
                                                         </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button onClick={() => setStuckResolutionType('checklist')} className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${stuckResolutionType === 'checklist' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-200'}`}>
-                                                            Checklist
-                                                        </button>
-                                                        <button onClick={() => setStuckResolutionType('subtask')} className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${stuckResolutionType === 'subtask' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-200'}`}>
-                                                            Subtasks
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="p-3 bg-white rounded-lg border border-amber-200 text-left">
-                                                    <label className="block text-[10px] font-bold text-amber-900 mb-1">
-                                                        {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Ping') ? 'Write your message:' : 'Write your micro-step (1 sentence):'}
-                                                    </label>
-                                                    <textarea value={stuckNextActionText} onChange={(e) => setStuckNextActionText(e.target.value)} placeholder="..." className="w-full p-2 text-xs rounded border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none resize-none" rows={3} autoFocus></textarea>
-                                                    
-                                                    {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Ping') && (
-                                                        <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 bg-amber-50 rounded border border-amber-100 italic">
-                                                            {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Teacher') ? (
-                                                                <>
-                                                                    <span className="text-[10px]">🎓</span>
-                                                                    <span className="text-[10px] font-bold text-amber-700">Private alert to your teacher</span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <span className="text-[10px]">👥</span>
-                                                                    <span className="text-[10px] font-bold text-amber-700">Alerts your team and teacher</span>
-                                                                </>
-                                                            )}
+                                                    )}
+
+                                                    {stuckSubStep === 'action' && (
+                                                        <div className="animate-in zoom-in-95 duration-300 text-center">
+                                                            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 mb-4 italic text-[11px] text-amber-800">
+                                                                "{rephrasedText}"
+                                                            </div>
+
+                                                            <div className="text-center mb-6">
+                                                                <h4 className="text-xs font-bold text-gray-900 mb-2">Did rephrasing help clarify the goal?</h4>
+                                                                
+                                                                {/* NO PATH */}
+                                                                <div className="bg-white p-3 rounded-xl border border-gray-100 mb-4 text-center">
+                                                                    <p className="text-[10px] text-gray-500 mb-2">If you're still not sure what to do:</p>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const taskTitle = task?.title || 'this task';
+                                                                            const projectTitle = project?.title || 'this project';
+                                                                            const draft = `Hi! I'm stuck on "${taskTitle}" for ${projectTitle}. I tried to rephrase the goal as: "${rephrasedText}", but I still need help with... `;
+                                                                            setStuckNextActionText(draft);
+                                                                            setStuckSubStep('pinging');
+                                                                        }}
+                                                                        className="text-xs font-bold text-amber-600 hover:text-amber-700 underline px-4 py-2 bg-amber-50 rounded-lg w-full transition-all"
+                                                                    >
+                                                                        No, I'm still stuck. Ask my teacher for help.
+                                                                    </button>
+                                                                </div>
+
+                                                                {/* YES PATH */}
+                                                                <div className="pt-2 border-t border-gray-100">
+                                                                    <p className="text-[10px] text-gray-500 mb-3 text-center">If it did, let's make it actionable:</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 gap-2">
+                                                                <button 
+                                                                    onClick={handleCreateStuckChecklist}
+                                                                    className="p-3 rounded-xl border border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left flex items-center gap-3 group"
+                                                                >
+                                                                    <ListChecks className="w-5 h-5 text-indigo-500 shrink-0" />
+                                                                    <div>
+                                                                        <span className="block font-bold text-gray-900 text-xs">Add as Checklist Item</span>
+                                                                        <span className="text-[10px] text-gray-500 block">A small step in this task</span>
+                                                                    </div>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={handleCreateStuckSubtask}
+                                                                    className="p-3 rounded-xl border border-gray-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all text-left flex items-center gap-3 group"
+                                                                >
+                                                                    <ExternalLink className="w-5 h-5 text-emerald-500 shrink-0" />
+                                                                    <div>
+                                                                        <span className="block font-bold text-gray-900 text-xs">Add as Subtask</span>
+                                                                        <span className="text-[10px] text-gray-500 block">A new connected task</span>
+                                                                    </div>
+                                                                </button>
+                                                            </div>
+                                                            <button onClick={() => setStuckSubStep('checkin')} className="mt-4 text-[10px] text-gray-400 hover:text-gray-600 font-medium">Skip for now</button>
+                                                        </div>
+                                                    )}
+
+                                                    {stuckSubStep === 'checkin' && (
+                                                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 text-center">
+                                                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                                <CheckCircle2 className="w-6 h-6 text-green-600" />
+                                                            </div>
+                                                            <h4 className="text-sm font-bold text-gray-900 mb-1">Progress made!</h4>
+                                                            <p className="text-[11px] text-gray-600 mb-4 leading-tight">
+                                                                Ready to start or still feeling stuck?
+                                                            </p>
+                                                            <div className="flex flex-col gap-2">
+                                                                <button 
+                                                                    onClick={handleClose}
+                                                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all"
+                                                                >
+                                                                    I'm ready to start!
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        const taskTitle = localTask?.title || 'this task';
+                                                                        const projectTitle = project?.title || 'this project';
+                                                                        const draft = `Hi! I'm stuck on "${taskTitle}" for ${projectTitle}. I tried to rephrase the goal as: "${rephrasedText}", but I still need help with... `;
+                                                                        setStuckNextActionText(draft);
+                                                                        setStuckSubStep('pinging');
+                                                                    }}
+                                                                    className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 hover:border-amber-400 hover:text-amber-700 rounded-lg font-bold text-xs transition-all"
+                                                                >
+                                                                    Still stuck... I need help
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {stuckSubStep === 'pinging' && (
+                                                        <div className="animate-in fade-in duration-300">
+                                                            <h4 className="text-xs font-bold text-gray-900 mb-1 text-center">Reach out for help</h4>
+                                                            <p className="text-[10px] text-gray-600 text-center mb-4 leading-tight">
+                                                                Your rephrase will help others understand where to jump in.
+                                                            </p>
+                                                            <div className="bg-amber-50 p-2 rounded-lg border border-amber-200 mb-4">
+                                                                <textarea
+                                                                    value={stuckNextActionText}
+                                                                    onChange={(e) => setStuckNextActionText(e.target.value)}
+                                                                    className="w-full p-2 text-xs rounded border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none resize-none m-0"
+                                                                    rows={5}
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                onClick={handleStuckSubmit}
+                                                                disabled={loading}
+                                                                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs flex items-center justify-center transition-all shadow-sm"
+                                                            >
+                                                                Send Draft <Send className="w-3 h-3 ml-2" />
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>
+                                            ) : (
+                                                /* STANDARD FLOW */
+                                                <>
+                                                    {((stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A")) ? (
+                                                        <div className="space-y-3 text-left">
+                                                            <div className="p-3 bg-amber-100/50 rounded-lg border border-amber-200">
+                                                                <h5 className="text-[10px] font-bold text-amber-900 uppercase mb-2">Break it down:</h5>
+                                                                <div className="space-y-2">
+                                                                    {stuckSteps.map((s, idx) => (
+                                                                        <input key={idx} value={s} onChange={(e) => {
+                                                                            const newSteps = [...stuckSteps];
+                                                                            newSteps[idx] = e.target.value;
+                                                                            setStuckSteps(newSteps);
+                                                                        }} placeholder={`Step ${idx + 1}...`} className="w-full p-2 text-xs rounded border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none" />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <button onClick={() => setStuckResolutionType('checklist')} className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${stuckResolutionType === 'checklist' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-200'}`}>
+                                                                    Checklist
+                                                                </button>
+                                                                <button onClick={() => setStuckResolutionType('subtask')} className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${stuckResolutionType === 'subtask' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-200'}`}>
+                                                                    Subtasks
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="p-3 bg-white rounded-lg border border-amber-200 text-left">
+                                                            <label className="block text-[10px] font-bold text-amber-900 mb-1">
+                                                                {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Ping') ? 'Write your message:' : 'Write your commit (1 sentence):'}
+                                                            </label>
+                                                            <textarea value={stuckNextActionText} onChange={(e) => setStuckNextActionText(e.target.value)} placeholder="..." className="w-full p-2 text-xs rounded border border-amber-200 focus:ring-1 focus:ring-amber-500 outline-none resize-none" rows={3} autoFocus></textarea>
+                                                            
+                                                            {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Ping') && (
+                                                                <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 bg-amber-50 rounded border border-amber-100 italic">
+                                                                    {ACTION_TREE[stuckReason as keyof typeof ACTION_TREE].options.find(o => o.id === stuckActionId)?.text.includes('Teacher') ? (
+                                                                        <>
+                                                                            <span className="text-[10px]">🎓</span>
+                                                                            <span className="text-[10px] font-bold text-amber-700">Private alert to your teacher</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <span className="text-[10px]">👥</span>
+                                                                            <span className="text-[10px] font-bold text-amber-700">Alerts your team and teacher</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    <button onClick={handleStuckSubmit} disabled={loading || (((stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A")) ? !stuckSteps.every(s => s.trim()) : !stuckNextActionText.trim())} className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-200 text-white rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2">
+                                                        Commit & Proceed
+                                                        <ClockIcon className="w-3 h-3" />
+                                                    </button>
+                                                </>
                                             )}
-                                            <button onClick={handleStuckSubmit} disabled={loading || (((stuckReason === "1" && stuckActionId === "B") || (stuckReason === "5" && stuckActionId === "A")) ? !stuckSteps.every(s => s.trim()) : !stuckNextActionText.trim())} className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-200 text-white rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2">
-                                                Commit & Proceed
-                                                <ClockIcon className="w-3 h-3" />
-                                            </button>
                                         </div>
                                     )}
                                 </>

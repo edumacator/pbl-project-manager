@@ -11,7 +11,8 @@ class Task implements JsonSerializable
     public string $title;
     public ?string $description;
     public string $status; // 'todo', 'doing', 'done'
-    public bool $isStuck = false; // New
+    public bool $isStuck = false;
+    public bool $isStuckResolver = false; // New
     public ?int $assigneeId;
     public ?int $teamId;
     public ?string $dueDate;
@@ -54,8 +55,9 @@ class Task implements JsonSerializable
         ?string $teamName = null,
         ?string $createdAt = null,
         ?string $deletedAt = null, // New
-        int $sortOrder = 0, // New
-        ?int $parentId = null
+        int $sortOrder = 0,
+        ?int $parentId = null,
+        bool $isStuckResolver = false // New
     ) {
         $this->projectId = $projectId;
         $this->title = $title;
@@ -85,6 +87,7 @@ class Task implements JsonSerializable
         $this->deletedAt = $deletedAt;
         $this->sortOrder = $sortOrder;
         $this->parentId = $parentId;
+        $this->isStuckResolver = $isStuckResolver;
     }
 
     public function jsonSerialize(): mixed
@@ -96,6 +99,7 @@ class Task implements JsonSerializable
             'description' => $this->description,
             'status' => $this->status,
             'is_stuck' => $this->isStuck,
+            'is_stuck_resolver' => $this->isStuckResolver,
             'assignee_id' => $this->assigneeId,
             'assignee_name' => $this->assigneeName,
             'team_id' => $this->teamId,

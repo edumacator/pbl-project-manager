@@ -11,6 +11,7 @@ class TaskChecklistItem implements JsonSerializable
     public string $content;
     public bool $isCompleted;
     public int $sortOrder;
+    public bool $isStuckResolver;
     public ?string $createdAt;
     public ?string $updatedAt;
 
@@ -19,6 +20,7 @@ class TaskChecklistItem implements JsonSerializable
         string $content,
         bool $isCompleted = false,
         int $sortOrder = 0,
+        bool $isStuckResolver = false,
         ?int $id = null,
         ?string $createdAt = null,
         ?string $updatedAt = null
@@ -27,6 +29,7 @@ class TaskChecklistItem implements JsonSerializable
         $this->content = $content;
         $this->isCompleted = $isCompleted;
         $this->sortOrder = $sortOrder;
+        $this->isStuckResolver = $isStuckResolver;
         $this->id = $id;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
@@ -40,6 +43,7 @@ class TaskChecklistItem implements JsonSerializable
             'content' => $this->content,
             'is_completed' => (bool) $this->isCompleted,
             'sort_order' => $this->sortOrder,
+            'is_stuck_resolver' => (bool) $this->isStuckResolver,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt
         ];

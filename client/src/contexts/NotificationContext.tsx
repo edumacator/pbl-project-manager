@@ -23,6 +23,7 @@ interface NotificationContextType {
     unreadCount: number;
     fetchNotifications: () => Promise<void>;
     dismissNotification: (id: number) => Promise<void>;
+    dismissTaskNotifications: (taskId: number) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -43,14 +44,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, [user]);
 
-    const dismissNotification = async (id: number) => {
+    const dismissNotification = useCallback(async (id: number) => {
         try {
             await api.post(`/notifications/${id}/dismiss`, {});
             setNotifications(prev => prev.filter(n => n.id !== id));
         } catch (err) {
             console.error("Failed to dismiss notification:", err);
         }
-    };
+    }, []);
+
+    const dismissTaskNotifications = useCallback(async (taskId: number) => {
+        try {
+            await api.post(`/notifications/tasks/${taskId}/dismiss`, {});
+            setNotifications(prev => prev.filter(n => n.task_id !== taskId));
+        } catch (err) {
+            console.error("Failed to dismiss notifications for task:", err);
+        }
+    }, []);
 
     useEffect(() => {
         if (user) {
@@ -72,7 +82,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             discussions, 
             unreadCount: notifications.length,
             fetchNotifications,
-            dismissNotification
+            dismissNotification,
+            dismissTaskNotifications
         }}>
             {children}
         </NotificationContext.Provider>

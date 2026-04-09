@@ -1035,6 +1035,29 @@ if ($uri === '/api/v1/notifications/unread-stuck' && $_SERVER['REQUEST_METHOD'] 
     exit;
 }
 
+if (preg_match('#^/api/v1/notifications/tasks/(\d+)/dismiss$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $taskId = (int)$matches[1];
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    try {
+        $db = \App\Repositories\MySQL\Database::getConnection();
+        $stmt = $db->prepare("
+            INSERT IGNORE INTO notification_dismissals (user_id, message_id)
+            SELECT ?, id FROM task_messages WHERE task_id = ?
+        ");
+        $stmt->execute([$currentUser->id, $taskId]);
+        echo json_encode(['ok' => true]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
 if (preg_match('#^/api/v1/notifications/(\d+)/dismiss$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $messageId = (int)$matches[1];
     if (!$currentUser) {

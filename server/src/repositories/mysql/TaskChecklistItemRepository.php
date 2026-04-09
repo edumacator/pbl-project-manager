@@ -38,14 +38,15 @@ class TaskChecklistItemRepository implements TaskChecklistItemRepositoryInterfac
     public function create(TaskChecklistItem $item): int
     {
         $stmt = $this->db->prepare("
-            INSERT INTO task_checklist_items (task_id, content, is_completed, sort_order)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO task_checklist_items (task_id, content, is_completed, sort_order, is_stuck_resolver)
+            VALUES (?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $item->taskId,
             $item->content,
             $item->isCompleted ? 1 : 0,
-            $item->sortOrder
+            $item->sortOrder,
+            $item->isStuckResolver ? 1 : 0
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -54,13 +55,14 @@ class TaskChecklistItemRepository implements TaskChecklistItemRepositoryInterfac
     {
         $stmt = $this->db->prepare("
             UPDATE task_checklist_items
-            SET content = ?, is_completed = ?, sort_order = ?
+            SET content = ?, is_completed = ?, sort_order = ?, is_stuck_resolver = ?
             WHERE id = ?
         ");
         return $stmt->execute([
             $item->content,
             $item->isCompleted ? 1 : 0,
             $item->sortOrder,
+            $item->isStuckResolver ? 1 : 0,
             $item->id
         ]);
     }
@@ -78,6 +80,7 @@ class TaskChecklistItemRepository implements TaskChecklistItemRepositoryInterfac
             $row['content'],
             (bool) $row['is_completed'],
             (int) $row['sort_order'],
+            (bool) ($row['is_stuck_resolver'] ?? false),
             (int) $row['id'],
             $row['created_at'],
             $row['updated_at']

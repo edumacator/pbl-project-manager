@@ -108,7 +108,7 @@ class TaskService
         return $this->checklistRepo->findByTaskId($taskId);
     }
 
-    public function addChecklistItem(int $taskId, string $content, int $userId): \App\Domain\TaskChecklistItem
+    public function addChecklistItem(int $taskId, string $content, int $userId, bool $isStuckResolver = false): \App\Domain\TaskChecklistItem
     {
         $task = $this->taskRepo->findById($taskId);
         $user = $this->userRepo->findById($userId);
@@ -123,7 +123,7 @@ class TaskService
             throw new \Exception("Only the task owner or a teacher can add checklist items");
         }
 
-        $item = new \App\Domain\TaskChecklistItem($taskId, $content);
+        $item = new \App\Domain\TaskChecklistItem($taskId, $content, false, 0, $isStuckResolver);
         $id = $this->checklistRepo->create($item);
         $item->id = $id;
         return $item;
@@ -155,8 +155,38 @@ class TaskService
             $item->isCompleted = (bool) $data['is_completed'];
         if (isset($data['sort_order']))
             $item->sortOrder = (int) $data['sort_order'];
+        if (isset($data['is_stuck_resolver']))
+            $item->isStuckResolver = (bool) $data['is_stuck_resolver'];
 
-        $this->checklistRepo->update($item);
+        // Auto-unstuck logic
+        if ($item->isStuckResolver && $item->isCompleted) {
+            // Clear resolver flag on the current item object BEFORE updating DB
+            // This prevents race condition overwrites from concurrent clicks
+            $item->isStuckResolver = false;
+            $this->checklistRepo->update($item);
+
+            if ($task->isStuck) {
+                $task->isStuck = false;
+                $task->status = 'doing';
+                $this->taskRepo->update($task);
+                
+                // Audit log for auto-unstuck
+                if ($this->auditRepo) {
+                    $log = new \App\Domain\AuditLog($userId, 'UNMARKED_STUCK', json_encode([
+                        'task_id' => $task->id,
+                        'reason' => 'Stuck resolver checklist item completed'
+                    ]));
+                    $this->auditRepo->log($log);
+                }
+            }
+            
+            // Resolve all other stuck resolvers for this task (including this one just in case)
+            $this->resolveAllStuckResolvers($task->id, $userId);
+        } else {
+            // Normal update for non-resolver items or uncompleting items
+            $this->checklistRepo->update($item);
+        }
+
         return $item;
     }
 
@@ -274,7 +304,8 @@ class TaskService
             null, // createdAt
             null, // deletedAt
             0,    // sortOrder
-            $parentId
+            $parentId,
+            (bool) ($data['is_stuck_resolver'] ?? false)
         );
 
         $id = $this->taskRepo->create($task);
@@ -329,9 +360,9 @@ class TaskService
                 throw new \Exception("Cannot complete task: " . count($incompleteSubtasks) . " subtask(s) are still incomplete.");
             }
 
-            // Existing completable check (reviews, etc)
-            if (!$task->isCompletable) {
-                // ... logic already exists below or in ReviewService
+            // Main Task critique check
+            if (!$task->parentId && !$this->reviewService->isTaskCompletable($task->id)) {
+                throw new \Exception("Cannot complete task: This project requires at least one warm/cool review from a peer or teacher before completion.");
             }
         }
 
@@ -351,8 +382,13 @@ class TaskService
             $task->teamId = $data['team_id'];
         if (array_key_exists('due_date', $data))
             $task->dueDate = $data['due_date'];
-        if (array_key_exists('is_stuck', $data))
-            $task->isStuck = (bool) $data['is_stuck'];
+        if (array_key_exists('is_stuck', $data)) {
+            $newValue = (bool) $data['is_stuck'];
+            if ($task->isStuck && !$newValue && $task->status === 'todo') {
+                $task->status = 'doing';
+            }
+            $task->isStuck = $newValue;
+        }
         if (isset($data['priority']))
             $task->priority = $data['priority'];
         if (isset($data['start_date']))
@@ -433,6 +469,27 @@ class TaskService
             }
         }
 
+        // Auto-unstuck logic for parent if this is a resolver task
+        if ($task->status === 'done' && $task->isStuckResolver && $task->parentId) {
+            $parent = $this->taskRepo->findById($task->parentId);
+            if ($parent && $parent->isStuck) {
+                $parent->isStuck = false;
+                $parent->status = 'doing';
+                $this->taskRepo->update($parent);
+                
+                // Resolve all other stuck resolvers for this parent task
+                $this->resolveAllStuckResolvers($parent->id, $userId);
+
+                if ($this->auditRepo) {
+                    $log = new \App\Domain\AuditLog($userId, 'UNMARKED_STUCK', json_encode([
+                        'task_id' => $parent->id,
+                        'reason' => 'Stuck resolver subtask completed'
+                    ]));
+                    $this->auditRepo->log($log);
+                }
+            }
+        }
+
         return $task;
     }
 
@@ -497,5 +554,25 @@ class TaskService
     public function restoreTask(int $taskId): bool
     {
         return $this->taskRepo->restore($taskId);
+    }
+
+    private function resolveAllStuckResolvers(int $taskId, int $userId): void
+    {
+        // 1. Resolve checklist items (direct SQL for efficiency/robustness)
+        $pdo = \App\Repositories\MySQL\Database::getConnection();
+        $pdo->prepare("UPDATE task_checklist_items SET is_stuck_resolver = 0 WHERE task_id = ?")->execute([$taskId]);
+
+        // 2. Resolve subtasks (direct SQL)
+        $pdo->prepare("UPDATE tasks SET is_stuck_resolver = 0 WHERE parent_task_id = ?")->execute([$taskId]);
+        
+        // Audit log for state change
+        if ($this->auditRepo) {
+            $log = new \App\Domain\AuditLog($userId, 'UPDATE_TASK_METADATA', json_encode([
+                'task_id' => $taskId,
+                'change' => 'all_stuck_resolvers_cleared',
+                'reason' => 'Auto-unmarked as part of unstucking parent task'
+            ]));
+            $this->auditRepo->log($log);
+        }
     }
 }

@@ -172,7 +172,7 @@ class ReviewService
         if (!$project)
             return false;
 
-        if (!$project->requireCritique) {
+        if (!$project->requireCritique || $task->parentId) {
             return true;
         }
 

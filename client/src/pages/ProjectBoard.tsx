@@ -119,7 +119,7 @@ const KanbanColumn: React.FC<{
                                         {task.priority}
                                     </span>
                                 )}
-                                {task.resource_count && task.resource_count > 0 ? (
+                                {((task.resource_count ?? 0) > 0) ? (
                                     <div title={`${task.resource_count} resources attached`}>
                                         <Paperclip className="w-3 h-3 text-indigo-400" />
                                     </div>
@@ -230,7 +230,11 @@ const ProjectBoard: React.FC = () => {
             const task = tasks.find(t => t.id === Number(taskId));
             if (task) {
                 setSelectedTask(task);
+            } else {
+                setSelectedTask(null);
             }
+        } else if (!taskId) {
+            setSelectedTask(null);
         }
 
         const viewParam = searchParams.get('view');
@@ -297,6 +301,16 @@ const ProjectBoard: React.FC = () => {
     const handleTaskCreated = () => {
         fetchTasks(selectedTeamId);
         setTimelineRefresh(prev => prev + 1);
+    };
+
+    const handleTaskSelect = (task: Task | null) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (task) {
+            newParams.set('task', task.id.toString());
+        } else {
+            newParams.delete('task');
+        }
+        setSearchParams(newParams);
     };
 
     const handleTaskDrop = async (taskId: number, newStatus: string) => {
@@ -553,7 +567,7 @@ const ProjectBoard: React.FC = () => {
                             tasks={todoTasks} 
                             onAdd={() => setIsCreateTaskOpen(true)} 
                             onDrop={handleTaskDrop} 
-                            onTaskClick={setSelectedTask} 
+                            onTaskClick={handleTaskSelect} 
                         />
                         <KanbanColumn 
                             title="In Progress" 
@@ -561,7 +575,7 @@ const ProjectBoard: React.FC = () => {
                             tasks={doingTasks} 
                             onAdd={() => setIsCreateTaskOpen(true)} 
                             onDrop={handleTaskDrop} 
-                            onTaskClick={setSelectedTask} 
+                            onTaskClick={handleTaskSelect} 
                         />
                         <KanbanColumn 
                             title="Stuck" 
@@ -569,7 +583,7 @@ const ProjectBoard: React.FC = () => {
                             tasks={stuckTasks} 
                             onAdd={() => setIsCreateTaskOpen(true)} 
                             onDrop={handleTaskDrop} 
-                            onTaskClick={setSelectedTask} 
+                            onTaskClick={handleTaskSelect} 
                         />
                         <KanbanColumn 
                             title="Done" 
@@ -577,7 +591,7 @@ const ProjectBoard: React.FC = () => {
                             tasks={doneTasks} 
                             onAdd={() => setIsCreateTaskOpen(true)} 
                             onDrop={handleTaskDrop} 
-                            onTaskClick={setSelectedTask} 
+                            onTaskClick={handleTaskSelect} 
                         />
                     </div>
                 )}
@@ -589,7 +603,7 @@ const ProjectBoard: React.FC = () => {
                             projectProp={project!}
                             onAddTask={() => setIsCreateTaskOpen(true)}
                             showArchived={showArchived}
-                            onTaskClick={setSelectedTask}
+                            onTaskClick={handleTaskSelect}
                             refreshTrigger={timelineRefresh}
                         />
                     </div>
@@ -604,7 +618,7 @@ const ProjectBoard: React.FC = () => {
                             showFilters={false}
                             onEventClick={(event) => {
                                 if (event.sourceType === 'task') {
-                                    setSearchParams({ ...Object.fromEntries(searchParams), task: event.sourceId.toString() });
+                                    handleTaskSelect({ id: event.sourceId } as Task);
                                 }
                             }}
                         />
@@ -676,15 +690,12 @@ const ProjectBoard: React.FC = () => {
 
                     {selectedTask && (
                         <TaskDetailsModal
+                            key={selectedTask.id}
                             task={selectedTask}
                             project={project}
                             isOpen={!!selectedTask}
                             onClose={() => {
-                                setSelectedTask(null);
-                                if (searchParams.has('task')) {
-                                    searchParams.delete('task');
-                                    setSearchParams(searchParams);
-                                }
+                                handleTaskSelect(null);
                                 fetchTasks(selectedTeamId);
                             }}
                             onTaskUpdate={() => {
