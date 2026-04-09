@@ -13,11 +13,11 @@ class StuckTaskService
         $this->pdo = Database::getConnection();
     }
 
-    public function logStuckAction(int $taskId, int $userId, string $reason, string $actionTaken, string $nextActionText): int
+    public function logStuckAction(int $taskId, int $userId, string $reason, string $actionTaken, string $nextActionText, ?string $resolution = null): int
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO task_stuck_logs (task_id, user_id, reason, action_taken, next_action_text)
-            VALUES (:task_id, :user_id, :reason, :action_taken, :next_action_text)
+            INSERT INTO task_stuck_logs (task_id, user_id, reason, action_taken, next_action_text, resolution)
+            VALUES (:task_id, :user_id, :reason, :action_taken, :next_action_text, :resolution)
         ");
 
         $stmt->execute([
@@ -25,7 +25,8 @@ class StuckTaskService
             ':user_id' => $userId,
             ':reason' => $reason,
             ':action_taken' => $actionTaken,
-            ':next_action_text' => $nextActionText
+            ':next_action_text' => $nextActionText,
+            ':resolution' => $resolution
         ]);
 
         return (int) $this->pdo->lastInsertId();

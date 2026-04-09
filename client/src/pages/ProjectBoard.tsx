@@ -307,8 +307,10 @@ const ProjectBoard: React.FC = () => {
         const newParams = new URLSearchParams(searchParams);
         if (task) {
             newParams.set('task', task.id.toString());
+            newParams.delete('tab'); // Ensure we default to Overview unless deliberately deep-linked
         } else {
             newParams.delete('task');
+            newParams.delete('tab');
         }
         setSearchParams(newParams);
     };

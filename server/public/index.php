@@ -838,10 +838,11 @@ if (preg_match('#^/api/v1/tasks/(\d+)/stuck-log$#', $uri, $matches)) {
         $reason = $input['reason'] ?? '';
         $actionTaken = $input['action_taken'] ?? '';
         $nextActionText = $input['next_action_text'] ?? '';
+        $resolution = $input['resolution'] ?? null;
 
         try {
             $stuckService = new \App\Services\StuckTaskService();
-            $logId = $stuckService->logStuckAction($taskId, $currentUser->id, $reason, $actionTaken, $nextActionText);
+            $logId = $stuckService->logStuckAction($taskId, $currentUser->id, $reason, $actionTaken, $nextActionText, $resolution);
 
             $shouldUnstick = (bool)($input['should_unstick'] ?? true);
             if ($shouldUnstick) {

@@ -605,5 +605,76 @@ Prior intent preserved:
 - Preserved teacher visibility while ensuring students can manage deep task trees without UI friction.
 
 Notes for Antigravity:
-The `TaskDetailsModal` is now the primary navigation hub for tasks and subtasks. The `history` array manages the breadcrumb-style navigation.
-  
+The `TaskDetailsModal.tsx` is now the primary navigation hub for tasks and subtasks. The `history` array manages the breadcrumb-style navigation.
+
+## 2026-04-09 07:05 Codex Completed Work
+Files changed:
+- [feature/stuck-protocol-integration](file:///c:/Antigravity_Projects/project-management/) (Branch Created)
+- [server/migrations/043_add_is_stuck_resolver_to_checklist.sql](file:///c:/Antigravity_Projects/project-management/server/migrations/043_add_is_stuck_resolver_to_checklist.sql)
+- [server/migrations/044_add_is_stuck_resolver_to_tasks.sql](file:///c:/Antigravity_Projects/project-management/server/migrations/044_add_is_stuck_resolver_to_tasks.sql)
+- [server/migrations/apply_043.php](file:///c:/Antigravity_Projects/project-management/server/migrations/apply_043.php)
+- [server/migrations/apply_044.php](file:///c:/Antigravity_Projects/project-management/server/migrations/apply_044.php)
+- 23 other modified files (TaskService, TaskDetailsModal, etc.)
+
+Summary:
+- **Branch Initialization**: Established a dedicated `feature/stuck-protocol-integration` branch from the latest `main`.
+- **Work Recovery**: Successfully recovered and committed 23+ files of uncommitted 'Stuck Protocol' work that was sitting in the workspace.
+- **Baseline Sync**: Confirmed the workspace is now clean and synced with the 'Integrated Stuck Protocol' baseline described in previous handoff entries.
+
+Prior intent preserved: Repository hygiene and history preservation for multi-agent collaboration.
+New constraints: Work continues on `feature/stuck-protocol-integration`.
+
+## 2026-04-09 07:10 Codex Planned Work
+Scope: Stuck Protocol Refinement - Historical Visibility & Focus Scaffolding.
+Files expected:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+- [client/src/types/index.ts](file:///c:/Antigravity_Projects/project-management/client/src/types/index.ts)
+- [server/src/services/StuckTaskService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/StuckTaskService.php)
+Conflict check: Refining existing "Stuck History" tab and "Focus Banners" implemented in the baseline.
+
+## 2026-04-09 07:30 Codex Planned Work
+Scope: Refined Productive Struggle (2-B) flow, Messaging Audience Toggle, and Submission Validation Fixes.
+Files expected:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+Conflict check: Overlapping with recent specialized flows (2-A/2-B).
+Intent to preserve: Adolescent executive function support by providing clear communication channels and non-punitive research scaffolding.
+
+### 2026-04-09 12:10 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Productive Struggle (2-B) UX Finalization**:
+    - **Focused Question**: Updated initial prompt to *"What's one question you need answered to move forward?"*
+    - **Research Intent Input**: Added a specific input field for *"What will you look for?"* on the timer selection screen.
+    - **Contextual Reinforcement**: Displayed the original focus question above the research intent input and during the research countdown.
+    - **Answer Step Polish**: Added low-friction subheader *"Doesn't have to be perfect, just jot it down"* to the answer capture step.
+    - **"Next Step" Bridge**: Implemented a final dialog asking *"Based on that, what's your next step?"* with two actionable paths: "Create checklist item" or "Getting to work!".
+- **Bug Fixes**:
+    - **JSX Syntax Error**: Resolved a missing fragment closure `</>` that was preventing compilation.
+    - **Logic Scope**: Hardened `handleStuckSubmit` to ensure all path-specific flags (`isProductiveStruggle`, etc.) are correctly defined.
+
+Prior intent preserved: Scaffolded adolescent executive function by transforming research from a passive "wait" into an active "search" with defined goals and clear actionable outcomes.
+New constraints: None.
+Notes for Antigravity: Path 2-B is now the most robust "Transition to Action" flow in the system.
+### 2026-04-09 12:20 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Productive Struggle (2-B) Surgical Restoration**: Finalized the integration of the multi-step research protocol (Question -> Intent -> Timer -> Answer -> Next Step) into the stable baseline.
+- **Path 2-B UX Refinements**:
+    - **Language Updates**: Implemented user-requested prompts: "What's one question you need answered to move forward?", "What will you look for?", and "What did you find?".
+    - **Decision Bridge**: Added the "Create checklist item" vs. "Getting to work!" choice at the end of the research flow.
+    - **Immediate Unstick**: Optimized "Getting to work!" to bypass resolver creation and immediately mark the task as active.
+- **Stability & Type Safety**:
+    - **Duplicate Identifier Fix**: Resolved a [plugin:vite:react-babel] error caused by a redeclared isResolverAction variable.
+    - **TypeScript Alignment**: Updated the stuckResolutionType state definition to allow 
+ull, facilitating the immediate unstick path.
+    - **Logic Consolidation**: Unified the unstick/resolver-creation logic in handleStuckSubmit to ensure consistent UI feedback (toasts, banners).
+- **Initialization Logic**: Updated handleStuckActionSelect to correctly initialize the sub-step state (write_question for Path 2-B, ewrite for Path 2-A) upon selection.
+
+Prior intent preserved: Scaffolded adolescent executive function by providing a clear, low-friction research protocol that transforms "struggle" into "productive action."
+New constraints: stuckResolutionType can now be 
+ull.
+Notes for Antigravity: The code is verified via 	sc and the session_bak has been removed.
