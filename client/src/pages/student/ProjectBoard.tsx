@@ -13,7 +13,6 @@ import { CritiqueModal } from '../../components/CritiqueModal';
 import { ReflectionModal } from '../../components/ReflectionModal';
 import { ProjectHomeView } from '../../components/ProjectHomeView';
 import CalendarView from '../../components/CalendarView';
-import StuckTaskModal from '../../components/StuckTaskModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -33,7 +32,6 @@ export const StudentProjectBoard: React.FC = () => {
     const [critiqueTask, setCritiqueTask] = useState<Task | null>(null);
 
     const [isReflectionModalOpen, setIsReflectionModalOpen] = useState(false);
-    const [showStuckModal, setShowStuckModal] = useState(false);
     const [reflectionTask, setReflectionTask] = useState<Task | null>(null);
     const [reflectionTransition, setReflectionTransition] = useState<'start_work' | 'finish_task'>('start_work');
     const [pendingStatus, setPendingStatus] = useState<string | null>(null);
@@ -48,12 +46,18 @@ export const StudentProjectBoard: React.FC = () => {
     }, [id]);
 
     useEffect(() => {
-        if (data && taskIdParam) {
-            const taskIdDecoded = Number(taskIdParam);
-            const task = data.tasks?.find((t: Task) => t.id === taskIdDecoded);
-            if (task) {
-                setSelectedTask(task);
-                setActiveTab('board'); // ensure board view is active for context
+        if (data) {
+            if (taskIdParam) {
+                const taskIdDecoded = Number(taskIdParam);
+                const task = data.tasks?.find((t: Task) => t.id === taskIdDecoded);
+                if (task) {
+                    setSelectedTask(task);
+                    setActiveTab('board'); // ensure board view is active for context
+                } else {
+                    setSelectedTask(null);
+                }
+            } else {
+                setSelectedTask(null);
             }
         }
     }, [data, taskIdParam]);
@@ -155,10 +159,9 @@ export const StudentProjectBoard: React.FC = () => {
                 }));
             }
 
-            // Trigger the stuck decision tree if marked as stuck
+            // Trigger the stuck decision tree by opening the TaskDetailsModal
             if (newStuckState) {
-                setTaskToEdit(res.task || task);
-                setShowStuckModal(true);
+                handleTaskSelect(res.task || task);
             }
         } catch (err) {
             console.error("Failed to toggle stuck state", err);
@@ -211,6 +214,16 @@ export const StudentProjectBoard: React.FC = () => {
         setIsReflectionModalOpen(false);
         setReflectionTask(null);
         setPendingStatus(null);
+    };
+
+    const handleTaskSelect = (task: Task | null) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (task) {
+            newParams.set('task', task.id.toString());
+        } else {
+            newParams.delete('task');
+        }
+        setSearchParams(newParams);
     };
 
     const handleCritiqueSubmit = async (warm: string, cool: string, requiresRevision: boolean) => {
@@ -282,17 +295,6 @@ export const StudentProjectBoard: React.FC = () => {
                 />
             )}
 
-            {showStuckModal && taskToEdit && (
-                <StuckTaskModal
-                    task={taskToEdit}
-                    onClose={() => setShowStuckModal(false)}
-                    onResolved={() => {
-                        setShowStuckModal(false);
-                        loadTeamContext();
-                    }}
-                />
-            )}
-
             {/* Header */}
             <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
                 <div className="flex items-center">
@@ -358,7 +360,7 @@ export const StudentProjectBoard: React.FC = () => {
                                 tasks={data.tasks.filter((t: Task) => !t.parent_task_id)}
                                 onTaskMove={handleTaskMove}
                                 onTaskClaim={handleTaskClaim}
-                                onTaskClick={(task) => setSelectedTask(task)}
+                                onTaskClick={handleTaskSelect}
                                 onTaskAdd={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
                             />
                         ) : (
@@ -374,7 +376,7 @@ export const StudentProjectBoard: React.FC = () => {
                             <div className="h-full p-4 overflow-auto">
                                 <TimelineView
                                     teamId={data.team.id}
-                                    onTaskClick={(task) => setSelectedTask(task)}
+                                    onTaskClick={handleTaskSelect}
                                     onAddTask={() => { setTaskToEdit(null); setIsCreateTaskOpen(true); }}
                                     refreshTrigger={timelineRefresh}
                                 />
@@ -415,18 +417,15 @@ export const StudentProjectBoard: React.FC = () => {
             </div>
 
             <TaskDetailsModal
+                key={selectedTask?.id}
                 isOpen={!!selectedTask}
                 onClose={() => {
-                    setSelectedTask(null);
-                    if (taskIdParam) {
-                        searchParams.delete('task');
-                        setSearchParams(searchParams);
-                    }
+                    handleTaskSelect(null);
                 }}
                 task={selectedTask}
                 project={data.project}
-                onTaskUpdate={(updatedTask) => {
-                    setSelectedTask(updatedTask);
+                onTaskUpdate={() => {
+                    // Refresh data to ensure counts and states are correct
                     loadTeamContext();
                 }}
                 onEditTask={(t) => {

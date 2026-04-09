@@ -838,10 +838,11 @@ if (preg_match('#^/api/v1/tasks/(\d+)/stuck-log$#', $uri, $matches)) {
         $reason = $input['reason'] ?? '';
         $actionTaken = $input['action_taken'] ?? '';
         $nextActionText = $input['next_action_text'] ?? '';
+        $resolution = $input['resolution'] ?? null;
 
         try {
             $stuckService = new \App\Services\StuckTaskService();
-            $logId = $stuckService->logStuckAction($taskId, $currentUser->id, $reason, $actionTaken, $nextActionText);
+            $logId = $stuckService->logStuckAction($taskId, $currentUser->id, $reason, $actionTaken, $nextActionText, $resolution);
 
             $shouldUnstick = (bool)($input['should_unstick'] ?? true);
             if ($shouldUnstick) {
@@ -1028,6 +1029,29 @@ if ($uri === '/api/v1/notifications/unread-stuck' && $_SERVER['REQUEST_METHOD'] 
 
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode(['ok' => true, 'data' => $results]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);
+    }
+    exit;
+}
+
+if (preg_match('#^/api/v1/notifications/tasks/(\d+)/dismiss$#', $uri, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $taskId = (int)$matches[1];
+    if (!$currentUser) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => ['code' => 'UNAUTHORIZED', 'message' => 'Unauthorized']]);
+        exit;
+    }
+
+    try {
+        $db = \App\Repositories\MySQL\Database::getConnection();
+        $stmt = $db->prepare("
+            INSERT IGNORE INTO notification_dismissals (user_id, message_id)
+            SELECT ?, id FROM task_messages WHERE task_id = ?
+        ");
+        $stmt->execute([$currentUser->id, $taskId]);
+        echo json_encode(['ok' => true]);
     } catch (\Exception $e) {
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => $e->getMessage()]]);

@@ -121,7 +121,7 @@ export const TeamKanban: React.FC<TeamKanbanProps> = ({ tasks, onTaskMove, onTas
                                                         {task.priority}
                                                     </span>
                                                 )}
-                                                {task.resource_count && task.resource_count > 0 && (
+                                                {(task.resource_count ?? 0) > 0 && (
                                                     <div title={`${task.resource_count} resources attached`}>
                                                         <Paperclip className="w-3 h-3 text-indigo-400" />
                                                     </div>

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Task } from '../types';
 import { api } from '../api/client';
-import { ShieldAlert, ArrowRight, Clock, X, CheckCircle2, Send } from 'lucide-react';
+import { ShieldAlert, ArrowRight, Clock, X, CheckCircle2, Send, ListChecks, ExternalLink, AlertTriangle } from 'lucide-react';
 
 interface StuckTaskModalProps {
     task: Task;
+    project?: { title: string }; // Made it optional to fix lint and allow fallback
     onClose: () => void;
     onResolved: () => void;
 }
@@ -15,7 +16,7 @@ const ACTION_TREE = {
         options: [
             { id: "A", text: "Write the smallest possible next step (1 sentence)" },
             { id: "B", text: "Break this task into 3 smaller steps" },
-            { id: "C", text: "Look at the rubric and match one requirement" },
+            { id: "C", text: "Review project materials or the 'Resources' tab for hints" },
             { id: "D", text: "Ping Team: \"What's the next move on this?\"" },
             { id: "E", text: "Ping Teacher: \"I'm unsure what the first step should be.\"" }
         ]
@@ -25,7 +26,7 @@ const ACTION_TREE = {
         options: [
             { id: "A", text: "The instructions - Rewrite in own words & find confusing part" },
             { id: "B", text: "The content - Open notes/resource and write 1 question" },
-            { id: "C", text: "I'm not sure if it's correct - Compare to rubric" },
+            { id: "C", text: "I'm not sure if it's correct - Check against task requirements or examples" },
             { id: "D", text: "Ping Team: \"Can someone explain ___?\"" },
             { id: "E", text: "Ping Teacher: \"I'm confused about ___.\"" }
         ]
@@ -62,11 +63,13 @@ const ACTION_TREE = {
     }
 };
 
-const StuckTaskModal: React.FC<StuckTaskModalProps> = ({ task, onClose, onResolved }) => {
+const StuckTaskModal: React.FC<StuckTaskModalProps> = ({ task, project, onClose, onResolved }) => {
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [reason, setReason] = useState<string>("");
     const [actionId, setActionId] = useState<string>("");
     const [nextActionText, setNextActionText] = useState("");
+    const [rephrasedText, setRephrasedText] = useState("");
+    const [internalStep, setInternalStep] = useState<'rewrite' | 'action' | 'checkin' | 'pinging'>('rewrite');
     const [submitting, setSubmitting] = useState(false);
 
     const handleReasonSelect = (rId: string) => {
@@ -83,8 +86,47 @@ const StuckTaskModal: React.FC<StuckTaskModalProps> = ({ task, onClose, onResolv
     const isPing = selectedActionText ? selectedActionText.includes('Ping') : false;
     const pingVisibility = selectedActionText?.includes('Teacher') ? 'teacher' : 'team';
 
+    const handleCreateChecklistResolver = async () => {
+        if (!rephrasedText.trim()) return;
+        setSubmitting(true);
+        try {
+            await api.post(`/tasks/${task.id}/checklist`, {
+                content: rephrasedText,
+                is_stuck_resolver: true
+            });
+            setInternalStep('checkin');
+        } catch (err) {
+            console.error("Failed to create checklist item:", err);
+            alert("Failed to save checklist item.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleCreateSubtaskResolver = async () => {
+        if (!rephrasedText.trim()) return;
+        setSubmitting(true);
+        try {
+            await api.post(`/projects/${task.project_id}/tasks`, {
+                title: rephrasedText,
+                parent_task_id: task.id,
+                status: 'todo',
+                priority: 'P3',
+                is_stuck_resolver: true
+            });
+            setInternalStep('checkin');
+        } catch (err) {
+            console.error("Failed to create subtask:", err);
+            alert("Failed to save subtask.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleSubmit = async () => {
-        if (!nextActionText.trim()) {
+        const textToLog = (reason === '2' && actionId === 'A') ? rephrasedText : nextActionText;
+        
+        if (!textToLog.trim()) {
             alert(isPing ? "Please enter your message." : "Please enter your next action to proceed.");
             return;
         }
@@ -98,13 +140,14 @@ const StuckTaskModal: React.FC<StuckTaskModalProps> = ({ task, onClose, onResolv
             await api.post(`/tasks/${task.id}/stuck-log`, {
                 reason: reasonText,
                 action_taken: actionText,
-                next_action_text: nextActionText
+                next_action_text: textToLog
             });
 
             // 2. If it's a ping action, also send a message to the task history
-            if (isPing) {
+            if (isPing || internalStep === 'pinging') {
+                const messageToSend = (reason === '2' && actionId === 'A') || internalStep === 'pinging' ? nextActionText : textToLog;
                 await api.post(`/tasks/${task.id}/messages`, {
-                    message: nextActionText,
+                    message: messageToSend,
                     visibility: pingVisibility
                 });
             }
@@ -193,48 +236,204 @@ const StuckTaskModal: React.FC<StuckTaskModalProps> = ({ task, onClose, onResolv
 
                     {step === 3 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                            <button onClick={() => setStep(2)} className="text-sm text-gray-500 hover:text-amber-600 mb-4 inline-flex items-center">
+                            <button onClick={() => {
+                                if (reason === '2' && actionId === 'A' && internalStep !== 'rewrite') {
+                                    if (internalStep === 'action') setInternalStep('rewrite');
+                                    else if (internalStep === 'checkin') setInternalStep('action');
+                                    else if (internalStep === 'pinging') setInternalStep('checkin');
+                                } else {
+                                    setStep(2);
+                                }
+                            }} className="text-sm text-gray-500 hover:text-amber-600 mb-4 inline-flex items-center">
                                 &larr; Back
                             </button>
-                            <div className="text-center mb-6">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-                                    {isPing ? <Send className="w-8 h-8 text-green-600" /> : <CheckCircle2 className="w-8 h-8 text-green-600" />}
+
+                            {/* SPECIALIZED FLOW: Rewrite Instructions (2-A) */}
+                            {reason === '2' && actionId === 'A' ? (
+                                <div className="space-y-6">
+                                    {internalStep === 'rewrite' && (
+                                        <div className="animate-in fade-in duration-500">
+                                            <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 mb-6 flex gap-4 items-start">
+                                                <div className="bg-blue-500 p-2 rounded-lg text-white shrink-0">
+                                                    <AlertTriangle className="w-5 h-5" />
+                                                </div>
+                                                <p className="text-blue-900 text-sm leading-relaxed">
+                                                    Feeling stuck is a normal part of the process. Rephrasing the goal is a common and effective strategy to help you understand what needs to be done next.
+                                                </p>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-4">Rephrase the goal or instructions in your own words:</h3>
+                                            <textarea
+                                                value={rephrasedText}
+                                                onChange={(e) => setRephrasedText(e.target.value)}
+                                                placeholder="What are we trying to achieve here? Write it simply..."
+                                                className="w-full p-4 rounded-xl border-2 border-gray-100 focus:border-amber-400 focus:ring-0 outline-none resize-none min-h-[120px] text-lg text-gray-800"
+                                                autoFocus
+                                            />
+                                            <button
+                                                onClick={() => setInternalStep('action')}
+                                                disabled={!rephrasedText.trim()}
+                                                className="w-full mt-6 py-4 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl font-bold text-lg flex items-center justify-center transition-all"
+                                            >
+                                                Continue <ArrowRight className="w-5 h-5 ml-2" />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {internalStep === 'action' && (
+                                        <div className="animate-in zoom-in-95 duration-300 text-center">
+                                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6 italic text-amber-800">
+                                                "{rephrasedText}"
+                                            </div>
+
+                                            <div className="text-center mb-8">
+                                                <h3 className="text-xl font-bold text-gray-900 mb-4">Did rephrasing help clarify the goal?</h3>
+                                                
+                                                {/* NO PATH */}
+                                                <div className="bg-white p-4 rounded-2xl border border-gray-100 mb-6 text-center max-w-sm mx-auto">
+                                                    <p className="text-sm text-gray-500 mb-3">If you're still not sure what to do:</p>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const taskTitle = task?.title || 'this task';
+                                                            const projectTitle = project?.title || 'this project';
+                                                            const draft = `Hi! I'm stuck on "${taskTitle}" for ${projectTitle}. I tried to rephrase the goal as: "${rephrasedText}", but I still need help with... `;
+                                                            setNextActionText(draft);
+                                                            setInternalStep('pinging');
+                                                        }}
+                                                        className="font-bold text-amber-600 hover:text-amber-700 underline text-lg py-2 px-6 bg-amber-50 rounded-xl w-full transition-all"
+                                                    >
+                                                        No, I'm still stuck. Ask my teacher.
+                                                    </button>
+                                                </div>
+
+                                                {/* YES PATH */}
+                                                <div className="pt-4 border-t border-gray-100">
+                                                    <p className="text-sm text-gray-500 mb-4">If it did, let's make it actionable:</p>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <button 
+                                                    onClick={handleCreateChecklistResolver}
+                                                    className="p-6 rounded-2xl border-2 border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-center group"
+                                                >
+                                                    <ListChecks className="w-8 h-8 text-indigo-500 mx-auto mb-3 group-hover:scale-110 transition-transform" />
+                                                    <span className="block font-bold text-gray-900">Add as Checklist Item</span>
+                                                    <span className="text-xs text-gray-500 block mt-1">A small step in this task</span>
+                                                </button>
+                                                <button 
+                                                    onClick={handleCreateSubtaskResolver}
+                                                    className="p-6 rounded-2xl border-2 border-gray-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all text-center group"
+                                                >
+                                                    <ExternalLink className="w-8 h-8 text-emerald-500 mx-auto mb-3 group-hover:scale-110 transition-transform" />
+                                                    <span className="block font-bold text-gray-900">Add as Subtask</span>
+                                                    <span className="text-xs text-gray-500 block mt-1">A new connected task</span>
+                                                </button>
+                                            </div>
+                                            <button onClick={() => setInternalStep('checkin')} className="mt-8 text-sm text-gray-400 hover:text-gray-600 font-medium">Skip for now</button>
+                                        </div>
+                                    )}
+
+                                    {internalStep === 'checkin' && (
+                                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center">
+                                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                                <CheckCircle2 className="w-10 h-10 text-green-600" />
+                                            </div>
+                                            <h3 className="text-2xl font-bold text-gray-900 mb-2">Progress made!</h3>
+                                            <p className="text-gray-600 mb-8 max-w-sm mx-auto">
+                                                After rephrasing this goal, do you feel ready to start work, or are you still feeling stuck?
+                                            </p>
+                                            <div className="flex flex-col gap-3">
+                                                <button 
+                                                    onClick={onResolved}
+                                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                                                >
+                                                    I'm ready to start!
+                                                </button>
+                                                <button 
+                                                    onClick={() => {
+                                                        const taskTitle = task?.title || 'this task';
+                                                        const projectTitle = project?.title || 'this project';
+                                                        const draft = `Hi! I'm stuck on "${taskTitle}" for ${projectTitle}. I tried to rephrase the goal as: "${rephrasedText}", but I still need help with... `;
+                                                        setNextActionText(draft);
+                                                        setInternalStep('pinging');
+                                                    }}
+                                                    className="w-full py-3 bg-white border border-gray-200 text-gray-600 hover:border-amber-400 hover:text-amber-700 rounded-xl font-bold transition-all"
+                                                >
+                                                    Still stuck... I need help
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {internalStep === 'pinging' && (
+                                        <div className="animate-in fade-in duration-300">
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">Reach out for help</h3>
+                                            <p className="text-gray-600 text-sm text-center mb-6">
+                                                Complete your message. Your rephrase will help others understand where to jump in.
+                                            </p>
+                                            <div className="bg-amber-50 p-5 rounded-xl border border-amber-200 mb-6">
+                                                <textarea
+                                                    value={nextActionText}
+                                                    onChange={(e) => setNextActionText(e.target.value)}
+                                                    className="w-full p-4 rounded-xl border-amber-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none min-h-[150px] text-gray-800"
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-3">
+                                                <button
+                                                    onClick={handleSubmit}
+                                                    disabled={submitting}
+                                                    className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-lg flex items-center justify-center transition-all shadow-md"
+                                                >
+                                                    Send Draft <Send className="w-5 h-5 ml-2" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                                    {isPing ? 'Draft a Message' : 'Final Step: Commit'}
-                                </h3>
-                                <p className="text-gray-600 max-w-sm mx-auto">
-                                    {isPing ? 'Explain what you need help with. This will be sent as a message.' : 'Confirm your next action to get back on track. This task will move back to "Doing".'}
-                                </p>
-                            </div>
+                            ) : (
+                                /* STANDARD FLOW */
+                                <>
+                                    <div className="text-center mb-6">
+                                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+                                            {isPing ? <Send className="w-8 h-8 text-green-600" /> : <CheckCircle2 className="w-8 h-8 text-green-600" />}
+                                        </div>
+                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                                            {isPing ? 'Draft a Message' : 'Final Step: Commit'}
+                                        </h3>
+                                        <p className="text-gray-600 max-w-sm mx-auto">
+                                            {isPing ? 'Explain what you need help with. This will be sent as a message.' : 'Confirm your next action to get back on track. This task will move back to "Doing".'}
+                                        </p>
+                                    </div>
 
-                            <div className="bg-amber-50 p-5 rounded-xl border border-amber-200 mb-6">
-                                <label className="block text-sm font-bold text-amber-900 mb-2">
-                                    {isPing ? 'Write your message to the team or teacher:' : 'Write your specific next action (1 clear sentence):'}
-                                </label>
-                                <textarea
-                                    value={nextActionText}
-                                    onChange={(e) => setNextActionText(e.target.value)}
-                                    placeholder={isPing ? "e.g., I'm stuck on part 2, can someone explain..." : "e.g., I will look up how the map function works in JS..."}
-                                    className="w-full p-3 rounded-lg border border-amber-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none"
-                                    rows={3}
-                                    autoFocus
-                                />
-                            </div>
+                                    <div className="bg-amber-50 p-5 rounded-xl border border-amber-200 mb-6">
+                                        <label className="block text-sm font-bold text-amber-900 mb-2">
+                                            {isPing ? 'Write your message to the team or teacher:' : 'Write your specific next action (1 clear sentence):'}
+                                        </label>
+                                        <textarea
+                                            value={nextActionText}
+                                            onChange={(e) => setNextActionText(e.target.value)}
+                                            placeholder={isPing ? "e.g., I'm stuck on part 2, can someone explain..." : "e.g., I will look up how the map function works in JS..."}
+                                            className="w-full p-3 rounded-lg border border-amber-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none"
+                                            rows={3}
+                                            autoFocus
+                                        />
+                                    </div>
 
-                            <button
-                                onClick={handleSubmit}
-                                disabled={submitting || !nextActionText.trim()}
-                                className="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg flex items-center justify-center transition-all shadow-md hover:shadow-lg"
-                            >
-                                {submitting ? 'Saving...' : (
-                                    isPing ? (
-                                        <>Send Message <Send className="w-5 h-5 ml-2" /></>
-                                    ) : (
-                                        <>Start Timer & Get Unstuck <Clock className="w-5 h-5 ml-2" /></>
-                                    )
-                                )}
-                            </button>
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={submitting || !nextActionText.trim()}
+                                        className="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg flex items-center justify-center transition-all shadow-md hover:shadow-lg"
+                                    >
+                                        {submitting ? 'Saving...' : (
+                                            isPing ? (
+                                                <>Send Message <Send className="w-5 h-5 ml-2" /></>
+                                            ) : (
+                                                <>Start Timer & Get Unstuck <Clock className="w-5 h-5 ml-2" /></>
+                                            )
+                                        )}
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>

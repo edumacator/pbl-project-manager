@@ -10,10 +10,18 @@ interface SubtaskListProps {
     project: Project;
     subtasks: Task[];
     onSubtaskUpdate: () => void;
+    onTaskClick?: (task: Task) => void;
     canEdit: boolean;
 }
 
-export const SubtaskList: React.FC<SubtaskListProps> = ({ parentTask, project, subtasks, onSubtaskUpdate, canEdit }) => {
+export const SubtaskList: React.FC<SubtaskListProps> = ({ 
+    parentTask, 
+    project, 
+    subtasks, 
+    onSubtaskUpdate, 
+    onTaskClick,
+    canEdit 
+}) => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [quickAddTitle, setQuickAddTitle] = useState('');
     const [loading, setLoading] = useState(false);
@@ -60,7 +68,7 @@ export const SubtaskList: React.FC<SubtaskListProps> = ({ parentTask, project, s
         if (!canEdit) return;
         if (!window.confirm('Are you sure you want to delete this subtask?')) return;
         try {
-            await api.delete(`/tasks/${subtaskId}`);
+            await api.hardDeleteTask(subtaskId);
             onSubtaskUpdate();
             addToast('Subtask deleted', 'success');
         } catch (err) {
@@ -98,8 +106,11 @@ export const SubtaskList: React.FC<SubtaskListProps> = ({ parentTask, project, s
                                 {st.status === 'done' ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                             </button>
                             
-                            <div className="flex-1 min-w-0">
-                                <div className={`text-sm font-medium truncate ${st.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                            <div 
+                                className={`flex-1 min-w-0 ${onTaskClick ? 'cursor-pointer hover:bg-gray-100/50 p-1 -m-1 rounded-lg transition-colors' : ''}`}
+                                onClick={() => onTaskClick?.(st)}
+                            >
+                                <div className={`text-sm font-medium truncate ${st.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-900 group-hover:text-indigo-600 transition-colors'}`}>
                                     {st.title}
                                 </div>
                                 <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500">

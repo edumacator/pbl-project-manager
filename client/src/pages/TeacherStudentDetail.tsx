@@ -53,6 +53,7 @@ const TeacherStudentDetail: React.FC = () => {
     const [taskReflections, setTaskReflections] = useState<any[]>([]);
     const [taskResources, setTaskResources] = useState<any[]>([]);
     const [taskMessages, setTaskMessages] = useState<any[]>([]);
+    const [taskStuckLogs, setTaskStuckLogs] = useState<any[]>([]);
     const [showFullHistory, setShowFullHistory] = useState(false);
 
     const { addToast } = useToast();
@@ -155,17 +156,19 @@ const TeacherStudentDetail: React.FC = () => {
     const handleTaskClick = async (task: Task) => {
         setSelectedTask(task);
         try {
-            const [histRes, refRes, resRes, msgRes] = await Promise.all([
+            const [histRes, refRes, resRes, msgRes, stuckRes] = await Promise.all([
                 api.get<any[]>(`/tasks/${task.id}/history`).catch(() => []),
                 api.get<any[]>(`/tasks/${task.id}/reflections`).catch(() => []),
                 api.get<any[]>(`/tasks/${task.id}/resources`).catch(() => []),
-                api.get<any[]>(`/tasks/${task.id}/messages`).catch(() => [])
+                api.get<any[]>(`/tasks/${task.id}/messages`).catch(() => []),
+                api.getStuckLogs(task.id).catch(() => [])
             ]);
 
             setTaskHistory(histRes || []);
             setTaskReflections(refRes || []);
             setTaskResources(resRes || []);
             setTaskMessages(msgRes || []);
+            setTaskStuckLogs(stuckRes || []);
         } catch (error) {
             console.error("Failed to load task details", error);
             addToast("Failed to load some task details", "error");
@@ -400,14 +403,40 @@ const TeacherStudentDetail: React.FC = () => {
                                                     <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
                                                         <AlertTriangle className="w-4 h-4 mr-2 text-amber-500" /> Stuck Logs
                                                     </h3>
-                                                    {selectedTask.is_stuck ? (
-                                                        <div className="text-sm text-amber-700 bg-amber-50 p-4 rounded border border-amber-200">
-                                                            <p className="font-semibold mb-1">Currently Stuck</p>
-                                                            <p>This task is currently marked as stuck. Check the history or discussions for context.</p>
+                                                    {selectedTask.is_stuck && (
+                                                        <div className="text-xs text-amber-700 bg-amber-50 p-3 rounded border border-amber-200 mb-4 animate-pulse flex items-center gap-2">
+                                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                                            <span className="font-bold uppercase tracking-wider">Currently Stuck</span>
+                                                        </div>
+                                                    )}
+                                                    {taskStuckLogs.length === 0 ? (
+                                                        <div className="text-sm text-gray-400 italic bg-gray-50 p-4 rounded text-center border border-dashed border-gray-200">
+                                                            No historical stuck reports.
                                                         </div>
                                                     ) : (
-                                                        <div className="text-sm text-gray-400 italic bg-gray-50 p-4 rounded text-center border border-dashed border-gray-200">
-                                                            No active stuck logs for this task.
+                                                        <div className="space-y-3">
+                                                            {taskStuckLogs.map((log: any) => (
+                                                                <div key={log.id} className="p-3 bg-amber-50/50 border border-amber-100 rounded-lg shadow-sm">
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest bg-amber-100 px-1.5 py-0.5 rounded">Action Strategy</span>
+                                                                        <span className="text-[10px] text-gray-400">{new Date(log.created_at).toLocaleDateString()}</span>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-3 mb-2">
+                                                                        <div>
+                                                                            <p className="text-[9px] font-bold text-amber-500 uppercase mb-1">Obstacle</p>
+                                                                            <p className="text-xs text-amber-900 font-semibold leading-tight">{log.reason}</p>
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-[9px] font-bold text-amber-500 uppercase mb-1">Commitment</p>
+                                                                            <p className="text-xs text-amber-900 font-semibold leading-tight">{log.action_taken}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="pt-2 border-t border-amber-100/50">
+                                                                        <p className="text-[9px] font-bold text-amber-500 uppercase mb-1">Planned Step</p>
+                                                                        <p className="text-xs text-amber-800 italic">"{log.next_action_text}"</p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     )}
                                                 </section>

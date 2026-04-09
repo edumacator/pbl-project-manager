@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 type ApiResponse<T> = {
     ok: boolean;
@@ -73,4 +73,14 @@ export const api = {
             method: 'POST',
             body: JSON.stringify({ content, transition_type: transitionType })
         }),
+
+    // Stuck Protocol
+    logStuckAction: (taskId: number, data: { reason: string; action_taken: string; next_action_text: string }) =>
+        request<{ log_id: number }>(`/tasks/${taskId}/stuck-log`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        }),
+    
+    getStuckLogs: (taskId: number) =>
+        request<any[]>(`/tasks/${taskId}/stuck-log`, { method: 'GET' }),
 };

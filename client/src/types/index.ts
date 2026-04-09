@@ -63,6 +63,7 @@ export interface Task {
     end_date?: string; // Added
     is_stuck?: boolean; // Added
     duration_days?: number;
+    is_stuck_resolver?: boolean;
     sort_order?: number; // Added
     is_blocked?: boolean; // Virtual property
     is_completable?: boolean; // Virtual property for gatekeeping
@@ -82,6 +83,7 @@ export interface TaskChecklistItem {
     content: string;
     is_completed: boolean;
     sort_order: number;
+    is_stuck_resolver?: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -150,6 +152,17 @@ export interface TaskMessage {
     message: string;
     visibility?: 'team' | 'teacher';
     is_system: boolean;
+    created_at: string;
+    user_name?: string;
+}
+
+export interface StuckLog {
+    id: number;
+    task_id: number;
+    user_id: number;
+    reason: string;
+    action_taken: string;
+    next_action_text: string;
     created_at: string;
     user_name?: string;
 }

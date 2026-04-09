@@ -41,7 +41,7 @@ export const ReflectionModal: React.FC<ReflectionModalProps> = ({
 
     const placeholders = isStart
         ? ["Outline the first paragraph.", "Sketch the prototype layout.", "Find two sources."]
-        : ["Breaking it into smaller steps.", "Using the rubric.", "Working with my partner."];
+        : ["Breaking it into smaller steps.", "Reviewing project materials.", "Working with my partner."];
 
     const randomPlaceholder = placeholders[Math.floor(Math.random() * placeholders.length)];
 
