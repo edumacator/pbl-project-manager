@@ -678,3 +678,114 @@ Prior intent preserved: Scaffolded adolescent executive function by providing a 
 New constraints: stuckResolutionType can now be 
 ull.
 Notes for Antigravity: The code is verified via 	sc and the session_bak has been removed.
+
+## 2026-04-09 12:55 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+- [client/src/pages/ProjectBoard.tsx](file:///c:/Antigravity_Projects/project-management/client/src/pages/ProjectBoard.tsx)
+- [server/public/index.php](file:///c:/Antigravity_Projects/project-management/server/public/index.php)
+- [server/src/services/StuckTaskService.php](file:///c:/Antigravity_Projects/project-management/server/src/services/StuckTaskService.php)
+- [server/migrations/046_add_resolution_to_stuck_logs.sql](file:///c:/Antigravity_Projects/project-management/server/migrations/046_add_resolution_to_stuck_logs.sql) [NEW]
+
+Summary:
+- **Productive Struggle (2-B) Restoration**: Finalized and verified the multi-step research protocol (Question -> Intent -> Timer -> Answer -> Next Step).
+- **Stability Fix (Schema)**: Created and applied migration  46 to add the esolution column to 	ask_stuck_logs, resolving persistent 500 errors.
+- **Navigation Optimization**: Refined ProjectBoard.tsx to clear "sticky" 	ab parameters, ensuring modals default to "Overview" while preserving deep-linking for notifications.
+- **Branch Sync & Verification**: Successfully merged origin/main into the feature branch and verified with a clean 
+pm run build.
+
+Prior intent preserved: Adolescent executive function support via non-punitive, guided research and distraction-free task navigation.
+New constraints: None.
+Notes for Antigravity: Branch eature/stuck-protocol-integration is now fully verified and ready for PR. PR summary is prepared in pr_summary.md.
+
+## 2026-04-09 13:10 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Guided Evaluation (Path 2-C) Implementation**: 
+    - Implemented a 5-step guided self-reflection sequence (Normalize -> Clarify -> Criteria -> Compare -> Decide) for students who are "not sure if it's correct".
+    - **Metacognitive Scaffolding**: Integrated specific prompts to help students define quality criteria and compare their work against goals.
+    - **Action Decision Engine**: Provided context-aware outcomes including "Improvement" (internal checklist), "Research" (transition to Path 2-B protocol), and "Team/Teacher Ping" (with pre-filled reflection data).
+- **Structural Stabilization**:
+    - Refactored the specialized stuck protocol ternary chain in `TaskDetailsModal.tsx` to cleanly isolate Paths 2-A, 2-B, and 2-C.
+    - Synchronized the Research and Pinging sub-flows across specialized paths, enabling Path 2-C to leverage existing Timer and Messaging infrastructure.
+- **Verification**: Verified that all path-specific state transitions and data pre-filling logic function correctly within the unified task modal.
+
+Prior intent preserved: Scaffolded adolescent executive function by transforming evaluative uncertainty into a structured, deterministic reflection process that prioritizes self-correction over escalation.
+New constraints: None.
+Notes for Antigravity: Path 2-C is now fully integrated and shares sub-flow panels (Research, Pinging) with Path 2-B to maintain UI consistency and reduce code redundancy.
+
+## 2026-04-09 13:10 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Guided Evaluation (Path 2-C) Implementation**: 
+    - Implemented a 5-step guided self-reflection sequence (Normalize -> Clarify -> Criteria -> Compare -> Decide) for students who are "not sure if it's correct".
+    - **Metacognitive Scaffolding**: Integrated specific prompts to help students define quality criteria and compare their work against goals.
+    - **Action Decision Engine**: Provided context-aware outcomes including "Improvement" (internal checklist), "Research" (transition to Path 2-B protocol), and "Team/Teacher Ping" (with pre-filled reflection data).
+- **Structural Stabilization**:
+    - Refactored the specialized stuck protocol ternary chain in `TaskDetailsModal.tsx` to cleanly isolate Paths 2-A, 2-B, and 2-C.
+    - Synchronized the Research and Pinging sub-flows across specialized paths, enabling Path 2-C to leverage existing Timer and Messaging infrastructure.
+- **Verification**: Verified that all path-specific state transitions and data pre-filling logic function correctly within the unified task modal.
+
+Prior intent preserved: Scaffolded adolescent executive function by transforming evaluative uncertainty into a structured, deterministic reflection process that prioritizes self-correction over escalation.
+New constraints: None.
+Notes for Antigravity: Path 2-C is now fully integrated and shares sub-flow panels (Research, Pinging) with Path 2-B to maintain UI consistency and reduce code redundancy.
+## 2026-04-09 13:45 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Refined Path 2-C (Evaluation) Workflow**: Finalized the bridge between metacognitive reflection and project management actions.
+- **Subtask Support**: Integrated a "Create subtask" option into the unified `next_step` panel, enabling students to escalate "Improvement" needs into project-level tasks.
+- **Context-Aware Pinging**: Updated the "Still stuck... I need help" logic to automatically draft pre-filled messages containing evaluation metadata (interpretation, criteria, and uncertainty) when triggered from Path 2-C.
+- **Logic Unification**: Consolidated the `handleStuckSubmit` resolver logic to handle checklist items and subtasks uniformly across specialized paths.
+- **UI/UX Stabilization**: Resolved a missing icon import (`Users`) and refined the button group layout in the resolution phase.
+
+Prior intent preserved: Scaffolded adolescent executive function by providing a clear, deterministic path from evaluative uncertainty to actionable next steps, reducing the "blank page" feel of transitioning from reflection to work.
+New constraints: None.
+Notes for Antigravity: The Path 2-C integration is now complete. The "Improvement" option correctly routes to the resolution phase, and all help drafts are contextually aware. Branch is ready for final review.
+
+## 2026-04-10 07:58 Codex Completed Work
+Files changed:
+- [client/src/components/TaskDetailsModal.tsx](file:///c:/Antigravity_Projects/project-management/client/src/components/TaskDetailsModal.tsx)
+
+Summary:
+- **Metacognitive Evaluation (Path 2-C) Rework**: 
+    - Replaced the legacy evaluation flow with a strict, 6-step guided protocol for students selecting "I'm not sure if it's correct."
+    - **Progressive Reveal UI**: Implemented one-step-at-a-time disclosure (Intro -> Clarity -> Quick Check -> Locate -> Confidence -> Action).
+    - **Constraint Enforcement**: Switched to single-line inputs to enforce 1-sentence maximums and made text inputs optional per spec.
+    - **Deterministic Resolution Engine**: 
+        - **Improvement**: Automatically creates a "Fix or improve" subtask and switches the user to the **Overview** tab to see the result.
+        - **Research**: Seamlessly transitions users to the existing focused research timer (Path 2-B) with context.
+        - **Feedback**: Pre-fills context-aware help messages and redirects the user to the **Discussion** tab.
+    - **Enhanced Logging**: Updated backend persistence to capture detailed metacognitive data points (interpretation, uncertainty note, and confidence level).
+
+Prior intent preserved: Supported adolescent executive function by reducing cognitive load and transforming evaluative uncertainty into small, actionable steps.
+New constraints: All Path 2-C inputs are now single-line to maintain clarity and focus.
+Notes for Antigravity: The Path 2-C rework is complete and shares infrastructure with Path 2-B (Research) and the messaging service. Build verified.
+
+## 2026-04-10 08:32 Codex Planned Work
+Scope: GitHub Issue Templates initialization.
+Files expected: .github/ISSUE_TEMPLATE/bug_report.yml, .github/ISSUE_TEMPLATE/feature_request.yml, .github/ISSUE_TEMPLATE/tech_debt.yml, .github/ISSUE_TEMPLATE/agent_task.yml, .github/ISSUE_TEMPLATE/config.yml
+Conflict check: None. Adding structural GitHub templates.
+Intent to preserve: N/A (no existing structural templates to modify).
+
+## 2026-04-10 08:33 Codex Completed Work
+Files changed:
+- .github/ISSUE_TEMPLATE/bug_report.yml
+- .github/ISSUE_TEMPLATE/feature_request.yml
+- .github/ISSUE_TEMPLATE/tech_debt.yml
+- .github/ISSUE_TEMPLATE/agent_task.yml
+- .github/ISSUE_TEMPLATE/config.yml
+
+Summary:
+- Initialized GitHub Issue Forms in YAML format for structured issue intake.
+- Verified YAML syntax for all 5 files.
+- Pushed branch feat/github-issue-templates and opened PR #30.
+
+Prior intent preserved: N/A. Structural addition.
+New constraints: None.
+Notes for Antigravity: Issue forms are now active on GitHub. Custom bodies and fields are defined per the user request.
