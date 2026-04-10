@@ -1,0 +1,70 @@
+name: Agent Task
+description: Structured task for Antigravity or Codex
+title: "[TASK] "
+labels: ["agent-task"]
+body:
+  - type: dropdown
+    id: task_type
+    attributes:
+      label: Task type
+      options:
+        - Bug Fix
+        - Feature
+        - Refactor
+        - Investigation
+        - Documentation
+        - Test Coverage
+    validations:
+      required: true
+
+  - type: textarea
+    id: task_description
+    attributes:
+      label: Task description
+      description: State exactly what needs to be done.
+      placeholder: Add a calendar view that lets students download ICS files for project deadlines.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Define completion in checklist form.
+      placeholder: |
+        - [ ] Students can download ICS files
+        - [ ] Teachers can open each team project from the calendar view
+        - [ ] Existing project deadline behavior remains intact
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: List any hard constraints.
+      placeholder: |
+        - Do not change API contracts unless absolutely necessary
+        - Maintain compatibility with current database schema unless a migration is explicitly included
+        - Keep implementation lightweight for current hosting constraints
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation_notes
+    attributes:
+      label: Implementation notes
+      description: Add relevant technical context, dependencies, or files to inspect first.
+
+  - type: textarea
+    id: validation_steps
+    attributes:
+      label: Validation steps
+      description: Describe how the work should be tested or verified.
+      placeholder: |
+        1. Create a project with deadlines
+        2. Open the calendar view
+        3. Download ICS files
+        4. Confirm teacher links open the correct team project pages
+    validations:
+      required: true

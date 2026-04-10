@@ -1,0 +1,49 @@
+name: Tech Debt
+description: Track cleanup, refactors, and maintainability work
+title: "[TECH DEBT] "
+labels: ["tech-debt"]
+body:
+  - type: textarea
+    id: debt_description
+    attributes:
+      label: Debt description
+      description: Describe the technical debt clearly.
+      placeholder: Deadline update logic is duplicated in multiple components.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why_it_matters
+    attributes:
+      label: Why it matters
+      description: Explain the cost or risk of leaving this unresolved.
+      placeholder: This increases the chance of inconsistent behavior and slows future changes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_cleanup
+    attributes:
+      label: Proposed cleanup
+      description: Describe the refactor or cleanup approach.
+      placeholder: Extract shared logic into a single utility and add tests around date updates.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk_level
+    attributes:
+      label: Risk level
+      options:
+        - Low
+        - Medium
+        - High
+    validations:
+      required: true
+
+  - type: textarea
+    id: guardrails
+    attributes:
+      label: Guardrails
+      description: What must not break during this cleanup?
+      placeholder: Do not change API response shape used by the dashboard.

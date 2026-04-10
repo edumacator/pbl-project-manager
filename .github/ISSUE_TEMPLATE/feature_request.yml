@@ -1,0 +1,61 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem_or_need
+    attributes:
+      label: Problem or need
+      description: What problem are we solving or what need are we addressing?
+      placeholder: Teachers need a fast way to see all team milestone statuses from one screen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or enhancement.
+      placeholder: Add a teacher dashboard summary panel with milestone progress by team.
+    validations:
+      required: true
+
+  - type: textarea
+    id: user_value
+    attributes:
+      label: User value
+      description: Who benefits and how?
+      placeholder: Teachers save time and can intervene faster when teams are stuck.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: List the conditions that must be true for this to be complete.
+      placeholder: |
+        - [ ] Dashboard shows all teams for a class
+        - [ ] Milestone status is visible at a glance
+        - [ ] Clicking a team opens the project page
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Low
+        - Medium
+        - High
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Add architectural, hosting, UX, or policy constraints.
+      placeholder: Must work within current React + Vite + MySQL stack and avoid heavy polling.
