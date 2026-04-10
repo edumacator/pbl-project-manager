@@ -789,3 +789,14 @@ Summary:
 Prior intent preserved: N/A. Structural addition.
 New constraints: None.
 Notes for Antigravity: Issue forms are now active on GitHub. Custom bodies and fields are defined per the user request.
+
+## 2026-04-10 08:49 Codex Completed Work
+Files changed:
+- .github/ISSUE_TEMPLATE/config.yml
+
+Summary:
+- Updated General Discussion contact link to point to the repository-specific discussions page, resolving automated review feedback.
+
+Prior intent preserved: Yes.
+New constraints: None.
+Notes for Antigravity: Config is now fully actionable.
