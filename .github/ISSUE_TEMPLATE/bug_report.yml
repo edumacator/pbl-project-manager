@@ -1,0 +1,70 @@
+name: Bug Report
+description: Report something that is not working correctly
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe what is happening.
+      placeholder: The calendar view does not refresh after a deadline import.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior
+      description: Describe what should happen.
+      placeholder: The updated deadlines should appear after the import completes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to reproduce
+      description: List the steps needed to reproduce the issue.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: Select the severity of the issue.
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Select the primary area affected.
+      options:
+        - Frontend
+        - Backend
+        - Database
+        - Auth
+        - API
+        - UI/UX
+        - Integrations
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Add logs, screenshots, suspected cause, edge cases, or anything else useful.
